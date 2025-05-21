@@ -1,0 +1,26 @@
+@width = f100.0
+@height = f25.0
+
+;; Layout
+Width
+Pxs, @width
+Height
+Pxs, @height
+
+;; Draw
+Hover, w{ 8 * 2 * (3 + 0) } ; 80
+;;PushArg
+;;Rgb, b888888
+LibraryCall, w0 ; rounded rect
+CursorPointer
+CloseLatch, w48
+
+PushArg
+Rgb, baaaaaa
+LibraryCall, w0 ; rounded rect
+
+;; Events
+Clicked, w16
+Event, w32
+
+Return

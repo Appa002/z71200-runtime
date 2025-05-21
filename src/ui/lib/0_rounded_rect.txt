@@ -1,0 +1,73 @@
+@radius = f5.0
+@width = f100.0
+@height = f25.0
+
+;; Layout
+Width
+Pxs, @width
+Height
+Pxs, @height
+
+;; Args
+LoadReg, w10
+PullArgOr
+Rgb, b0000ff
+
+;; Drawing
+Color
+FromReg, w12
+
+BeginPath
+
+MoveTo ; x, y
+Pxs, @radius
+Pxs, f0.0
+
+LineTo; x, y
+Pxs, f{width - radius}
+Pxs, f0.0
+
+ArcTo; tx, ty, x, y, r
+Pxs, @width
+Pxs, f0.0
+Pxs, @width
+Pxs, @height
+Pxs, @radius
+
+LineTo; x, y
+Pxs, @width
+Pxs, f{height - radius}
+
+ArcTo; tx, ty, x, y, r
+Pxs, @width
+Pxs, @height
+Pxs, f{width - radius}
+Pxs, @height
+Pxs, @radius
+
+LineTo; x, y
+Pxs, @radius
+Pxs, @height
+
+ArcTo; tx, ty, x, y, r
+Pxs, f0.0
+Pxs, @height
+Pxs, f0.0
+Pxs, f{height - radius}
+Pxs, @radius
+
+LineTo; x, y
+Pxs, f0.0
+Pxs, @radius
+
+ArcTo; tx, ty, x, y, r
+Pxs, f0.0
+Pxs, f0.0
+Pxs, @radius
+Pxs, f0.0
+Pxs, @radius
+
+ClosePath
+EndPath
+
+Return

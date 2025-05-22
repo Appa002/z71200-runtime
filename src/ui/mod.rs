@@ -8,8 +8,8 @@ pub mod text;
 use anyhow::{Result, anyhow};
 use assembler::assemble;
 use context::VulkanRenderContext;
-use debug::debug_print_layout;
-use draw::draw;
+use draw::{CarriedState, draw};
+// use debug::debug_print_layout;
 use lazy_static::lazy_static;
 use parley::{FontContext, LayoutContext};
 use renderer::VulkanRenderer;
@@ -17,6 +17,7 @@ use skia_safe::{Color, Color4f, Font, FontMgr, FontStyle, Paint};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::error;
@@ -45,11 +46,12 @@ lazy_static! {
     };
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct InputState {
     cursor_pos: PhysicalPosition<f64>,
     mouse_down: bool,
     mouse_just_released: bool,
+    scroll_action: (f32, f32),
 }
 
 // trait StoredFnMut: FnMut(usize) -> () + Clone {}
@@ -71,9 +73,12 @@ where
     layout_context: LayoutContext<()>,
 
     input_state: InputState,
-    last_fram_jmps: HashMap<*const u8, bool>,
+    last_fram_jmps: HashMap<*const u8, CarriedState>,
     rx: Option<Receiver<()>>,
     rx_task: Option<JoinHandle<()>>,
+
+    animate_frames: i64,
+    last_frame_time: Instant,
 }
 
 impl<F> WGpuBackedApp<F>
@@ -104,6 +109,8 @@ where
             rx: Some(rx),
             rx_task: None,
             last_fram_jmps: HashMap::new(),
+            animate_frames: 0,
+            last_frame_time: std::time::Instant::now(),
         }
     }
 }
@@ -180,6 +187,22 @@ where
 
                 window.request_redraw();
             }
+            WindowEvent::MouseWheel {
+                device_id: _,
+                delta,
+                phase: _,
+            } => {
+                let (dx, dy) = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(lx, ly) => (lx * 12.0, ly * 12.0),
+                    winit::event::MouseScrollDelta::PixelDelta(physical_position) => {
+                        (physical_position.x as f32, physical_position.y as f32)
+                    }
+                };
+
+                self.input_state.scroll_action = (dx, dy);
+                self.animate_frames = 1_000;
+            }
+
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 if let Some(j) = self.rx_task.as_ref() {
@@ -192,17 +215,19 @@ where
                     renderer.prepare_swapchain();
 
                     let display_scale = window.scale_factor() as f32;
-                    let base_font_size = 14.0;
+                    let base_font_size = 11.0;
 
                     /* Window state resets */
                     window.set_cursor(CursorIcon::Default);
 
                     /* User geometry */
-
                     renderer.draw_and_present(|canvas, size| {
                         canvas.clear(Color4f::new(0.9, 0.9, 0.9, 1.0));
+                        /* Handle scaling */
+                        canvas.save();
+                        canvas.scale((1.0 / display_scale, 1.0 / display_scale));
 
-                        let r: Result<HashMap<*const u8, bool>> = {
+                        let r: Result<HashMap<*const u8, CarriedState>> = {
                             let guard = self.vdoms.lock().unwrap();
                             let loc = guard.0;
                             let vdom = &guard.1;
@@ -215,13 +240,14 @@ where
                                 //     debug_print_layout(*loc, file_start, &LIBRARY).unwrap()
                                 // );
 
-                                unsafe {
+                                let dt = self.last_frame_time.elapsed();
+                                let out = unsafe {
                                     draw(
                                         loc,
                                         file_start,
                                         file_start.add(vdom.len()),
-                                        size.width,
-                                        size.height,
+                                        size.width * display_scale,
+                                        size.height * display_scale,
                                         canvas,
                                         window.clone(),
                                         self.cb_push_evt.clone(),
@@ -232,8 +258,14 @@ where
                                         base_font_size,
                                         &LIBRARY,
                                         &self.last_fram_jmps,
+                                        dt,
                                     )
-                                }
+                                };
+                                // println!(
+                                //     "Implied FPS: {:.02}",
+                                //     1. / now.elapsed().as_millis() as f32 * 1_000.0
+                                // );
+                                out
                             } else {
                                 Err(anyhow!("Location for ui not yet defined in memory."))
                             }
@@ -243,17 +275,17 @@ where
                             Ok(jmps) => self.last_fram_jmps = jmps,
                             Err(err) => {
                                 error!("Error when generating frame. {:#}", err);
-                                let guard = self.vdoms.lock().unwrap();
-                                let loc = guard.0;
-                                let vdom = &guard.1;
+                                // let guard = self.vdoms.lock().unwrap();
+                                // let loc = guard.0;
+                                // let vdom = &guard.1;
 
-                                if let Some(loc) = loc {
-                                    let file_start = vdom.as_ptr();
-                                    error!(
-                                        "{}",
-                                        debug_print_layout(loc, file_start, &LIBRARY).unwrap()
-                                    );
-                                }
+                                // if let Some(loc) = loc {
+                                //     let file_start = vdom.as_ptr();
+                                //     // error!(
+                                //     //     "{}",
+                                //     //     debug_print_layout(loc, file_start, &LIBRARY).unwrap()
+                                //     // );
+                                // }
 
                                 let fmgr = FontMgr::default();
                                 let typeface = fmgr
@@ -269,6 +301,7 @@ where
                                 canvas.draw_str(err_str, (10.0, 30.0), &font, &paint);
                             }
                         }
+                        canvas.restore();
                     });
 
                     // Just released is only for that frame.
@@ -276,6 +309,14 @@ where
                         window.request_redraw();
                     }
                     self.input_state.mouse_just_released = false;
+                    self.input_state.scroll_action = (0.0, 0.0);
+
+                    self.animate_frames -= 1;
+                    if self.animate_frames > 0 {
+                        window.request_redraw();
+                    }
+
+                    self.last_frame_time = std::time::Instant::now();
                 }
             }
             _ => (),

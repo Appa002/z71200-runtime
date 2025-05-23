@@ -3,7 +3,6 @@ pub mod context;
 pub mod debug;
 pub mod draw;
 pub mod renderer;
-pub mod text;
 
 use anyhow::{Result, anyhow};
 use assembler::assemble;
@@ -214,15 +213,16 @@ where
                 if let Some(renderer) = self.renderer.as_mut() {
                     renderer.prepare_swapchain();
 
-                    let display_scale = window.scale_factor() as f32;
-                    let base_font_size = 11.0;
+                    // let display_scale = window.scale_factor() as f32;
+                    let base_font_size = 16.0;
+                    let display_scale = 1.0;
 
                     /* Window state resets */
                     window.set_cursor(CursorIcon::Default);
 
                     /* User geometry */
                     renderer.draw_and_present(|canvas, size| {
-                        canvas.clear(Color4f::new(0.9, 0.9, 0.9, 1.0));
+                        canvas.clear(Color4f::new(0.95, 0.95, 0.95, 1.0));
                         /* Handle scaling */
                         canvas.save();
                         canvas.scale((1.0 / display_scale, 1.0 / display_scale));
@@ -241,6 +241,7 @@ where
                                 // );
 
                                 let dt = self.last_frame_time.elapsed();
+                                // let now = std::time::Instant::now();
                                 let out = unsafe {
                                     draw(
                                         loc,

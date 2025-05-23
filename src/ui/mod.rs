@@ -258,9 +258,8 @@ where
                 if let Some(renderer) = self.renderer.as_mut() {
                     renderer.prepare_swapchain();
 
-                    // let display_scale = window.scale_factor() as f32;
+                    let display_scale = window.scale_factor() as f32;
                     let base_font_size = 16.0;
-                    let display_scale = 1.0;
 
                     /* Window state resets */
                     window.set_cursor(CursorIcon::Default);

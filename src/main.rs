@@ -88,6 +88,7 @@ async fn main() -> Result<()> {
                 .expect("Failed to broadcast over channel.");
         });
     };
+
     start(1600, 900, "z71200-runtime", vdoms, handler, rx_refresh);
     Ok(())
 }

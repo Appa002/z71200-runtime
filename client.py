@@ -291,6 +291,10 @@ def child(cursor):
     cursor = write_tagged_word(cursor, 42, str) # TextPtr <ptr>
 
     cursor = write_tagged_word(cursor, 10, None) # Leave (root)
+    return cursor
+
+cursor = child(cursor)
+cursor = child(cursor)
 
 
 cursor = write_tagged_word(cursor, 10, None) # Leave (root)

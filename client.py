@@ -203,6 +203,8 @@ def print_memory(ptr, n_bytes, bytes_per_row=32):
 
 
 # Std library
+
+
 ctx = Z71200Context()
 
 
@@ -236,8 +238,6 @@ def aloc_tagged_str(str: str):
     ctx.safe_write(bytes, ptr + 2*MACHINE_WORD)
     return ptr
 
-sleep(.5)
-
 # str = aloc_tagged_str(IPSUM);
 # root = aloc(2 * MACHINE_WORD * 64)
 # cursor = root
@@ -260,6 +260,8 @@ sleep(.5)
 
 str = aloc_tagged_str(IPSUM);
 root = aloc(2 * MACHINE_WORD * 64)
+
+
 cursor = root
 # Layout
 cursor = write_tagged_word(cursor, 9, None) # Enter (root)
@@ -267,12 +269,29 @@ cursor = write_tagged_word(cursor, 21, None)# Width
 cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
 cursor = write_tagged_word(cursor, 22, None)# Height
 cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
-# Text
-#
-cursor = write_tagged_word(cursor, 41, None) #Text, x, y, ptr
-cursor = write_tagged_word(cursor, 1, 0) # Pxs, 0
-cursor = write_tagged_word(cursor, 1, 0) # Pxs 0
-cursor = write_tagged_word(cursor, 42, str) # TextPtr <ptr>
+
+cursor = write_tagged_word(cursor, 23, None) # Padding
+cursor = write_tagged_word(cursor, 1, 10.0)
+cursor = write_tagged_word(cursor, 1, 10.0)
+cursor = write_tagged_word(cursor, 1, 10.0)
+cursor = write_tagged_word(cursor, 1, 10.0)
+
+cursor = write_tagged_word(cursor, 25, 1) # Display, FlexRow
+
+def child(cursor):
+    cursor = write_tagged_word(cursor, 9, None) # Enter (root)
+    cursor = write_tagged_word(cursor, 21, None)# Width
+    cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
+    cursor = write_tagged_word(cursor, 22, None)# Height
+    cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
+
+    cursor = write_tagged_word(cursor, 41, None) #Text, x, y, ptr
+    cursor = write_tagged_word(cursor, 1, 0) # Pxs, 0
+    cursor = write_tagged_word(cursor, 1, 0) # Pxs 0
+    cursor = write_tagged_word(cursor, 42, str) # TextPtr <ptr>
+
+    cursor = write_tagged_word(cursor, 10, None) # Leave (root)
+
 
 cursor = write_tagged_word(cursor, 10, None) # Leave (root)
 

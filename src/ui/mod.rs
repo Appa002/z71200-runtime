@@ -100,7 +100,7 @@ where
     width: u32,
     height: u32,
     title: &'static str,
-    vdoms: Arc<Mutex<(Option<usize>, Vec<u8>)>>,
+    vdoms: Arc<Mutex<(Option<usize>, Vec<usize>)>>,
     cb_push_evt: F,
 
     render_ctx: VulkanRenderContext,
@@ -126,7 +126,7 @@ where
         width: u32,
         height: u32,
         title: &'static str,
-        vdoms: Arc<Mutex<(Option<usize>, Vec<u8>)>>,
+        vdoms: Arc<Mutex<(Option<usize>, Vec<usize>)>>,
         cb_push_evt: F,
         rx: Receiver<()>,
     ) -> Self {
@@ -277,43 +277,50 @@ where
                             let guard = self.vdoms.lock().unwrap();
                             let loc = guard.0;
                             let vdom = &guard.1;
+                            if vdom.len() != 0 {
+                                if let Some(loc) = loc {
+                                    /*
+                                     NOTE: empty vectors (specifically that haven't allocated) have a dangling data ptr which is returned from vdom.as_ptr(); that pointer is never aligned and points to garbage,
+                                     so we can't do any draws with it.
+                                    */
+                                    let file_start = vdom.as_ptr() as *const u8;
 
-                            if let Some(loc) = loc {
-                                let file_start = vdom.as_ptr();
+                                    // error!(
+                                    //     "waaa {}",
+                                    //     debug_print_layout(*loc, file_start, &LIBRARY).unwrap()
+                                    // );
 
-                                // error!(
-                                //     "waaa {}",
-                                //     debug_print_layout(*loc, file_start, &LIBRARY).unwrap()
-                                // );
-
-                                // let now = std::time::Instant::now();
-                                let out = unsafe {
-                                    draw(
-                                        loc,
-                                        file_start,
-                                        file_start.add(vdom.len()),
-                                        size.width * display_scale,
-                                        size.height * display_scale,
-                                        canvas,
-                                        window.clone(),
-                                        self.cb_push_evt.clone(),
-                                        &self.input_state,
-                                        &mut self.font_context,
-                                        &mut self.layout_context,
-                                        display_scale,
-                                        base_font_size,
-                                        &LIBRARY,
-                                        &self.last_fram_jmps,
-                                        dt,
-                                    )
-                                };
-                                // println!(
-                                //     "Implied FPS: {:.02}",
-                                //     1. / now.elapsed().as_millis() as f32 * 1_000.0
-                                // );
-                                out
+                                    // let now = std::time::Instant::now();
+                                    let out = unsafe {
+                                        draw(
+                                            loc,
+                                            file_start,
+                                            file_start.add(vdom.len() * size_of::<usize>()),
+                                            size.width * display_scale,
+                                            size.height * display_scale,
+                                            canvas,
+                                            window.clone(),
+                                            self.cb_push_evt.clone(),
+                                            &self.input_state,
+                                            &mut self.font_context,
+                                            &mut self.layout_context,
+                                            display_scale,
+                                            base_font_size,
+                                            &LIBRARY,
+                                            &self.last_fram_jmps,
+                                            dt,
+                                        )
+                                    };
+                                    // println!(
+                                    //     "Implied FPS: {:.02}",
+                                    //     1. / now.elapsed().as_millis() as f32 * 1_000.0
+                                    // );
+                                    out
+                                } else {
+                                    Err(anyhow!("Location for ui not yet defined in memory."))
+                                }
                             } else {
-                                Err(anyhow!("Location for ui not yet defined in memory."))
+                                Err(anyhow!("Shared memory has not yet been read."))
                             }
                         };
 
@@ -371,7 +378,7 @@ pub fn start<F>(
     width: u32,
     height: u32,
     title: &'static str,
-    vdoms: Arc<Mutex<(Option<usize>, Vec<u8>)>>,
+    vdoms: Arc<Mutex<(Option<usize>, Vec<usize>)>>,
     cb_push_evt: F,
     rx: Receiver<()>,
 ) where

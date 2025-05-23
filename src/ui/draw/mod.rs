@@ -140,10 +140,10 @@ pub union ParamUnion {
 #[allow(dead_code)]
 pub enum DisplayOption {
     Block = 0,
-    FlexRow,
-    FlexColumn,
-    Grid,
-    None, /* hidden */
+    FlexRow,    /* 1 */
+    FlexColumn, /* 2 */
+    Grid,       /* 3 */
+    None,       /* 4 hidden */
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -354,6 +354,9 @@ where
 {
     let config = StaticConfig::new(file_start, base_font_size, display_scale, dt);
 
+    assert!(file_start as usize % size_of::<usize>() == 0);
+    assert!(unsafe { file_start.add(loc) } as usize % size_of::<usize>() == 0);
+
     let region_start = unsafe { file_start.add(loc) };
     let (root, mut tree) = layout_pass(region_start, file_end, config, library, frame_state)?;
     tree.compute_layout(
@@ -363,6 +366,8 @@ where
             height: taffy::prelude::length(height),
         },
     )?;
+
+    // tree.print_tree(root);
 
     text_pass(&mut tree, root, font_ctx, layout_ctx, config)?;
     let mut next_frame_state: HashMap<*const u8, CarriedState> = HashMap::new();

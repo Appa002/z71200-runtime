@@ -174,35 +174,35 @@ where
 
         if desired_height > window_height {
             self.y += state.scroll_y;
+            if self.is_hovered {
+                // if self.input_state.scroll_action.1 < 0.0 && state.scroll_y <= 0.0 {
+                //     state.scroll_y = -pos_exp_clamp(
+                //         state.scroll_y.abs(),
+                //         self.input_state.scroll_action.1.abs(),
+                //         desired_height - window_height,
+                //         0.005,
+                //         self.config.get_dt(),
+                //     );
+                // } else if self.input_state.scroll_action.1 > 0.0 && state.scroll_y >= 0.0 {
+                //     state.scroll_y = pos_exp_clamp(
+                //         state.scroll_y.abs(),
+                //         self.input_state.scroll_action.1.abs(),
+                //         0.0,
+                //         0.005,
+                //         self.config.get_dt(),
+                //     );
+                // } else {
+                //     state.scroll_y += self.input_state.scroll_action.1;
+                // }
+                // ^^^^ this implemnnts rubber banding around the edges and works but there is weird jumoy ness that comes from winit animations I think...
+
+                state.scroll_y += self.input_state.scroll_action.1;
+                state.scroll_y = state.scroll_y.clamp(-(desired_height - window_height), 0.0);
+            }
+        } else {
+            state.scroll_y = 0.0;
         }
-
-        if self.is_hovered {
-            // if self.input_state.scroll_action.1 < 0.0 && state.scroll_y <= 0.0 {
-            //     state.scroll_y = -pos_exp_clamp(
-            //         state.scroll_y.abs(),
-            //         self.input_state.scroll_action.1.abs(),
-            //         desired_height - window_height,
-            //         0.005,
-            //         self.config.get_dt(),
-            //     );
-            // } else if self.input_state.scroll_action.1 > 0.0 && state.scroll_y >= 0.0 {
-            //     state.scroll_y = pos_exp_clamp(
-            //         state.scroll_y.abs(),
-            //         self.input_state.scroll_action.1.abs(),
-            //         0.0,
-            //         0.005,
-            //         self.config.get_dt(),
-            //     );
-            // } else {
-            //     state.scroll_y += self.input_state.scroll_action.1;
-            // }
-            // ^^^^ this implemnnts rubber banding around the edges and works but there is weird jumoy ness that comes from winit animations I think...
-
-            state.scroll_y += self.input_state.scroll_action.1;
-            state.scroll_y = state.scroll_y.clamp(-(desired_height - window_height), 0.0);
-
-            self.next_frame_state.insert(self.cursor.cursor, state);
-        }
+        self.next_frame_state.insert(self.cursor.cursor, state);
 
         Ok(())
     }

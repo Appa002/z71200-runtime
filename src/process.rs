@@ -13,7 +13,7 @@ use crate::shm::LEN;
 use crate::shm::SemMutext;
 use crate::{shm::SHMHandle, sock::SockHandle};
 
-pub const PROTOCOL_VERSION: u64 = 1;
+pub const PROTOCOL_VERSION: usize = 1;
 
 #[derive(Debug)]
 pub struct ProcessHandle {
@@ -104,7 +104,7 @@ pub fn spawn_foreign_process(run: &str) -> Result<ProcessHandle> {
 
 fn handle_sock_msg_falliable(
     shm_handle: &SHMHandle,
-    vdoms: &Arc<Mutex<(Option<usize>, Vec<u8>)>>,
+    vdoms: &Arc<Mutex<(Option<usize>, Vec<usize>)>>,
     msg: serde_json::Map<String, serde_json::Value>,
 ) -> Result<Option<String>> {
     /* {kind: 'ask', fn: 'foo', args: {...}} */
@@ -166,7 +166,7 @@ fn handle_sock_msg_falliable(
 
 pub fn handle_sock_msg(
     shm_handle: &SHMHandle,
-    vdoms: &Arc<Mutex<(Option<usize>, Vec<u8>)>>,
+    vdoms: &Arc<Mutex<(Option<usize>, Vec<usize>)>>,
     msg: serde_json::Map<String, serde_json::Value>,
 ) -> Option<String> {
     match handle_sock_msg_falliable(shm_handle, vdoms, msg) {

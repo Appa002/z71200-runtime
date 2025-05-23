@@ -1,5 +1,5 @@
+use super::TaggedWord;
 use super::traits::{HasCursor, ReadIn};
-use super::{Tag, TaggedWord};
 use anyhow::{Result, anyhow};
 
 // Now anything that implements HasStack + HasRegister + HasCursor + HasStaticConfig + Intepreter can implement Executor
@@ -48,15 +48,10 @@ impl LinearCursor {
 impl HasCursor for LinearCursor {
     unsafe fn read_from_cursor(&mut self) -> Option<TaggedWord> {
         if self.lib_jmp_depth > 0
-            || (self.cursor >= self.region_start && self.cursor < self.region_end)
+            || (self.element_depth > 0
+                && (self.cursor >= self.region_start && self.cursor < self.region_end))
         {
             self.last_read = Some(unsafe { TaggedWord::read_in(&mut self.cursor) });
-            if self.last_read.unwrap().tag != Tag::Enter {
-                if self.element_depth <= 0 {
-                    return None;
-                }
-            }
-
             self.last_read
         } else {
             None

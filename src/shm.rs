@@ -15,7 +15,7 @@ use tokio::{io, task};
 
 use crate::{ll_aloc, process::PROTOCOL_VERSION};
 pub const VERSION_OFF: usize = 0;
-pub const DATA_OFF: usize = VERSION_OFF + size_of::<u64>();
+pub const DATA_OFF: usize = VERSION_OFF + size_of::<usize>();
 pub const LEN: usize = 1_024 * 12 /*12 kb*/;
 
 /// Create-or-open a POSIX shared-memory object and return the file descriptor
@@ -43,13 +43,17 @@ fn open_shm(c_name: &CString, len: usize) -> std::io::Result<File> {
 fn map_shared(file: &File, len: usize) -> std::io::Result<MmapMut> {
     let mut opts = MmapOptions::new();
     opts.len(len);
+
     unsafe { opts.map_mut(file) }
 }
 
 unsafe fn init_data(mm: &mut MmapMut) {
     unsafe {
-        let version_ptr = mm.as_mut_ptr().add(VERSION_OFF) as *mut u64;
+        let version_ptr = mm.as_mut_ptr().add(VERSION_OFF) as *mut usize;
         let data_ptr = mm.as_mut_ptr().add(DATA_OFF) as *mut u8;
+
+        assert_eq!(version_ptr as usize % size_of::<usize>(), 0);
+        assert_eq!(data_ptr as usize % size_of::<usize>(), 0);
 
         *version_ptr = PROTOCOL_VERSION.to_le();
 
@@ -160,7 +164,7 @@ impl SHMHandle {
     //     Ok(())
     // }
 
-    pub fn recv(&self) -> impl std::future::Future<Output = Vec<u8>> {
+    pub fn recv(&self) -> impl std::future::Future<Output = Vec<usize>> {
         let sem_ready = UnsafeFd(self.sem_ready);
         let sem_lock = UnsafeFd(self.sem_lock);
         let mmaped = self.shm_file.clone();
@@ -180,8 +184,15 @@ impl SHMHandle {
                         /* acquire inter-process lock */
                         let _guard = SemMutext::from_unsafe_fn(&sem_lock);
 
-                        let mut buffer = vec![0u8; LEN - DATA_OFF];
-                        buffer.copy_from_slice(&mmaped.lock().unwrap()[DATA_OFF..LEN]);
+                        // The following works because we are guaranteed to have written n*size_of(usize) many bytes
+                        // we mark the output vector as usize to guarantee alignment.
+                        let byte_len = LEN - DATA_OFF;
+                        let mut buffer = vec![0usize; byte_len / size_of::<usize>()];
+
+                        let u8_view = unsafe {
+                            std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, byte_len)
+                        };
+                        u8_view.copy_from_slice(&mmaped.lock().unwrap()[DATA_OFF..LEN]);
                         buffer
                     };
 

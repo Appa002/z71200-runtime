@@ -5,11 +5,11 @@ use skia_safe::Color;
 use taffy::{NodeId, TaffyTree};
 use winit::window::CursorIcon;
 
-use super::CarriedState;
 use super::cursors::LinearCursor;
+use super::{CarriedState, Tag, TaggedWord};
 
 use super::DisplayOption;
-use super::traits::{Executor, Intepreter};
+use super::traits::{Executor, Intepreter, ReadIn};
 use super::utils::StaticConfig;
 use super::vm_state::VMState;
 
@@ -38,7 +38,7 @@ struct LayoutIntepreter<'a> {
     node_stack: Vec<NodeId>,
     cur_start_ptr: *const u8,
     call_stack: Vec<*const u8>,
-    root: Option<NodeId>,
+    root: NodeId,
 }
 impl<'a> LayoutIntepreter<'a> {
     fn new(
@@ -47,68 +47,75 @@ impl<'a> LayoutIntepreter<'a> {
         config: StaticConfig,
         library: &'a HashMap<usize, Vec<u8>>,
         last_frame_state: &'a HashMap<*const u8, CarriedState>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        assert!(
+            region_start as usize % size_of::<usize>() == 0,
+            "region_start is unaligned."
+        );
+
+        // Consume the first node here which must be enter.
+        let mut cursor = LinearCursor::new(region_start, region_end);
+        let tagged_word = unsafe { TaggedWord::read_in(&mut cursor.cursor) };
+        if tagged_word.tag != Tag::Enter {
+            return Err(anyhow!(
+                "Memory region must begin with `Enter`, found {:?}",
+                tagged_word.tag
+            ));
+        }
+        cursor.add_depth(); /* this also means we are one depth in */
+
+        // create a node for the root, which we just read
+        let mut tree = TaffyTree::new();
+        let root = tree.new_leaf_with_context(taffy::Style::default(), LayoutContext::default())?;
+        let node_stack = vec![root];
+
+        Ok(Self {
             config,
             state: VMState::new(),
-            cursor: LinearCursor::new(region_start, region_end),
-            tree: TaffyTree::new(),
-            node_stack: Vec::new(),
+            cursor,
+            tree,
+            node_stack,
             cur_start_ptr: region_start,
             call_stack: Vec::new(),
             library,
             last_frame_state,
-            root: None,
-        }
-    }
-}
-
-impl<'a> Executor<VMState, LinearCursor, StaticConfig> for LayoutIntepreter<'a> {
-    fn get_config(&self) -> StaticConfig {
-        self.config
+            root,
+        })
     }
 
-    fn get_cursor(&mut self) -> &mut LinearCursor {
-        &mut self.cursor
-    }
-
-    fn get_vm_state(&mut self) -> &mut VMState {
-        &mut self.state
-    }
-}
-
-impl<'a> Intepreter for LayoutIntepreter<'a> {
-    fn handle_enter(&mut self) -> Result<()> {
-        let cur_node = if let Some(n) = self.node_stack.last() {
-            *n
-        } else {
-            let n = self
-                .tree
-                .new_leaf_with_context(taffy::Style::default(), LayoutContext::default())?;
-            self.node_stack.push(n);
-            n
-        };
-
+    fn enter_child(&mut self) -> Result<()> {
+        // This is used for all ways of entering children: `Enter`, `LibraryCall`, or `Call`
+        // the reason to make this separate is that the `self.cur_start_ptr` needs to be updated differently
+        // depending on if we are jumping into different memory regions.
+        let cur_node = self
+            .node_stack
+            .last()
+            .ok_or(anyhow!("At least one `Leave` too many."))?;
         self.cursor.add_depth();
 
-        if self.root.is_some() {
-            // otherwise this is the root
-            let mut ctx: LayoutContext = self
-                .tree
-                .get_node_context(cur_node)
-                .cloned()
-                .unwrap_or_default(); /* TODO: eliminate copy here */
-            ctx.ragged_members
-                .push((self.cur_start_ptr, self.cursor.cursor));
-            self.tree.set_node_context(cur_node, Some(ctx))?;
-        } else {
-            self.root = Some(cur_node);
-        }
+        // otherwise this is the root
+        let mut ctx: LayoutContext = self
+            .tree
+            .get_node_context(*cur_node)
+            .cloned()
+            .unwrap_or_default(); /* TODO: eliminate copy here */
+        ctx.ragged_members
+            .push((self.cur_start_ptr, self.cursor.cursor));
+        self.tree.set_node_context(*cur_node, Some(ctx))?;
+
+        self.node_stack.push(
+            self.tree
+                .new_leaf_with_context(taffy::Style::default(), LayoutContext::default())?,
+        );
 
         Ok(())
     }
 
-    fn handle_leave(&mut self) -> Result<()> {
+    fn leave_child(&mut self) -> Result<()> {
+        // This is used for all ways of leaving children: `Leave`, `LibraryReturn`, or `Return`
+        // the reason to make this separate is that the `self.cur_start_ptr` needs to be updated differently
+        // depending on if we are jumping into different memory regions.
+
         let cur_node = self
             .node_stack
             .pop()
@@ -132,6 +139,35 @@ impl<'a> Intepreter for LayoutIntepreter<'a> {
             /* root node doesn't have a parent. */
             self.tree.add_child(*parent, cur_node)?;
         }
+
+        Ok(())
+    }
+}
+
+impl<'a> Executor<VMState, LinearCursor, StaticConfig> for LayoutIntepreter<'a> {
+    fn get_config(&self) -> StaticConfig {
+        self.config
+    }
+
+    fn get_cursor(&mut self) -> &mut LinearCursor {
+        &mut self.cursor
+    }
+
+    fn get_vm_state(&mut self) -> &mut VMState {
+        &mut self.state
+    }
+}
+
+impl<'a> Intepreter for LayoutIntepreter<'a> {
+    fn handle_enter(&mut self) -> Result<()> {
+        self.enter_child()?;
+        self.cur_start_ptr = unsafe { self.cursor.cursor.sub(2 * size_of::<usize>()) };
+        Ok(())
+    }
+
+    fn handle_leave(&mut self) -> Result<()> {
+        self.leave_child()?;
+        self.cur_start_ptr = self.cursor.cursor;
         Ok(())
     }
 
@@ -142,14 +178,14 @@ impl<'a> Intepreter for LayoutIntepreter<'a> {
             .ok_or(anyhow!("Requested library element {} not found.", id))?
             .as_ptr();
         self.call_stack.push(self.cursor.cursor);
-        self.handle_enter()?; /* lib_call is implicit node enter */
+        self.enter_child()?; /* lib_call is implicit node enter */
         self.cursor.jmp_lib(code_ptr);
         self.cur_start_ptr = self.cursor.cursor;
         Ok(())
     }
 
     fn handle_return(&mut self) -> Result<()> {
-        self.handle_leave()?;
+        self.leave_child()?;
         let ret_ptr = self.call_stack.pop().ok_or(anyhow!(
             "`InlineReturn` tag called without being in library code."
         ))?;
@@ -400,9 +436,15 @@ pub(super) fn layout_pass(
     library: &HashMap<usize, Vec<u8>>,
     last_frame_state: &HashMap<*const u8, CarriedState>,
 ) -> Result<(NodeId, TaffyTree<LayoutContext>)> {
+    assert!(
+        region_start as usize % size_of::<usize>() == 0,
+        "alraedy cooked"
+    );
+
     let mut intepreter =
-        LayoutIntepreter::new(region_start, region_end, config, library, last_frame_state);
-    while let Some(_) = intepreter.advance()? {}
-    let root = intepreter.root.ok_or(anyhow!("No root in layout."))?;
-    Ok((root, intepreter.tree))
+        LayoutIntepreter::new(region_start, region_end, config, library, last_frame_state)?;
+    while let Some(_) = intepreter.advance()? {
+        // println!("hi");
+    }
+    Ok((intepreter.root, intepreter.tree))
 }

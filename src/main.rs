@@ -14,8 +14,8 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 
 /*
-    ) Race condition? with set_tree_root and just having written
-    ) Ui scrolling
+TODO: The file start is not magically 8 byte aligned...
+
 */
 
 #[tokio::main]
@@ -91,98 +91,3 @@ async fn main() -> Result<()> {
     start(1600, 900, "z71200-runtime", vdoms, handler, rx_refresh);
     Ok(())
 }
-
-// mod actor;
-// mod from_memory;
-// mod ll_aloc;
-// mod other;
-// mod shm;
-// mod sock;
-// mod to_gpui;
-// mod ui;
-
-// use actix::{Actor, Addr};
-// use actor::{LaunchState, ProcessActor};
-// use anyhow::Result;
-// use other::{UserCode, build_folder_tree, cli_prompt, print_folder_tree};
-// use std::{
-//     collections::HashMap,
-//     sync::{Arc, Mutex},
-// }; can you read this?
-// use tokio::sync::mpsc::{self, Sender};
-// use tracing::Level;
-// use tracing_subscriber::FmtSubscriber;
-
-// async fn create_process_actor(
-//     tx: Sender<()>,
-//     vdoms: &Arc<Mutex<HashMap<String, (Option<usize>, Arc<Vec<u8>>)>>>,
-//     actors: &Arc<Mutex<HashMap<String, Addr<ProcessActor>>>>,
-//     user_code: &UserCode,
-//     uid_counter: &mut u16,
-// ) -> Addr<ProcessActor> {
-//     let uid = format!("{:04x}", *uid_counter);
-//     *uid_counter += 1;
-
-//     let out = ProcessActor {
-//         tx,
-//         vdoms: vdoms.clone(),
-//         actors: actors.clone(),
-//         pstate: LaunchState::Stopped {
-//             uid: uid.to_string(),
-//         },
-//         active_tree_loc: Arc::new(Mutex::new(None)),
-//         user_code: user_code.clone(),
-//     }
-//     .start();
-//     actors
-//         .lock()
-//         .unwrap()
-//         .entry(uid.to_string())
-//         .insert_entry(out.clone());
-//     out
-// }
-
-// #[tokio::main]
-// async fn main() -> Result<()> {
-//     let subscriber = FmtSubscriber::builder()
-//         .with_max_level(Level::DEBUG)
-//         .with_thread_ids(true)
-//         .with_thread_names(true)
-//         .with_ansi(true)
-//         .finish();
-//     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-
-//     // Begin by analysing the root folder and gathering the static user code
-//     let root_path = cli_prompt();
-//     let user_tree = Arc::new(Mutex::new(build_folder_tree(&root_path).unwrap()));
-//     print_folder_tree(&user_tree.lock().unwrap(), 0, 0);
-
-//     // Structure used to keep track of uid->vdom and channel for notifying screen refresh
-//     let tree_store = Arc::new(Mutex::new(HashMap::new()));
-//     let actor_store: Arc<Mutex<HashMap<String, Addr<ProcessActor>>>> =
-//         Arc::new(Mutex::new(HashMap::new()));
-//     let mut uid_counter = 0u16;
-
-//     let (tx, rx) = mpsc::channel::<()>(1);
-
-//     // Actix-Launches to handle actor infrastructure
-//     let tree_store_1 = tree_store.clone();
-//     let actor_store_1 = actor_store.clone();
-//     std::thread::spawn(move || {
-//         let system = actix::System::new();
-
-//         system.block_on(create_process_actor(
-//             tx,
-//             &tree_store_1,
-//             &actor_store_1,
-//             &UserCode::from_id(user_tree, 0),
-//             &mut uid_counter,
-//         ));
-
-//         system.run().unwrap(); /* blocking */
-//     });
-
-//     // Everything gpui related must happen on the main thread.
-//     ui::start(800, 450, "Neosqueak", "0000", tree_store, &actor_store, rx).await;
-//     Ok(())
-// }

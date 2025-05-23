@@ -16,7 +16,7 @@ use skia_safe::{Color, Color4f, Font, FontMgr, FontStyle, Paint};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::error;
@@ -53,7 +53,45 @@ pub struct InputState {
     scroll_action: (f32, f32),
 }
 
-// trait StoredFnMut: FnMut(usize) -> () + Clone {}
+// Used to render atleast n seconds of output before letting the loop go to sleep so that animation can be smooth
+struct AnimationGuard {
+    cur_target: Option<Duration>,
+    elapsed_time: Duration,
+}
+impl AnimationGuard {
+    fn new() -> Self {
+        Self {
+            cur_target: None,
+            elapsed_time: Duration::from_secs(0),
+        }
+    }
+
+    fn is_done(&mut self) -> bool {
+        if let Some(cur_target) = self.cur_target {
+            if cur_target <= self.elapsed_time {
+                self.cur_target = None;
+                self.elapsed_time = Duration::from_secs(0);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fn set(&mut self, target: Duration) {
+        // only set my new target if this target is more time
+        if let Some(cur_target) = self.cur_target {
+            if (cur_target - self.elapsed_time) < target {
+                self.cur_target = Some(target);
+            }
+        } else {
+            self.cur_target = Some(target);
+        }
+    }
+
+    fn update(&mut self, dt: Duration) {
+        self.elapsed_time += dt;
+    }
+}
 
 struct WGpuBackedApp<F>
 where
@@ -76,7 +114,7 @@ where
     rx: Option<Receiver<()>>,
     rx_task: Option<JoinHandle<()>>,
 
-    animate_frames: i64,
+    animate_guard: AnimationGuard,
     last_frame_time: Instant,
 }
 
@@ -108,7 +146,7 @@ where
             rx: Some(rx),
             rx_task: None,
             last_fram_jmps: HashMap::new(),
-            animate_frames: 0,
+            animate_guard: AnimationGuard::new(),
             last_frame_time: std::time::Instant::now(),
         }
     }
@@ -145,6 +183,13 @@ where
             }
         });
         self.rx_task = Some(j);
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        let window = self.renderer.as_ref().unwrap().window.clone();
+        if !self.animate_guard.is_done() {
+            window.request_redraw();
+        }
     }
 
     fn window_event(
@@ -199,7 +244,7 @@ where
                 };
 
                 self.input_state.scroll_action = (dx, dy);
-                self.animate_frames = 1_000;
+                self.animate_guard.set(Duration::from_secs(10));
             }
 
             WindowEvent::CloseRequested => {
@@ -219,6 +264,7 @@ where
 
                     /* Window state resets */
                     window.set_cursor(CursorIcon::Default);
+                    let dt = self.last_frame_time.elapsed();
 
                     /* User geometry */
                     renderer.draw_and_present(|canvas, size| {
@@ -240,7 +286,6 @@ where
                                 //     debug_print_layout(*loc, file_start, &LIBRARY).unwrap()
                                 // );
 
-                                let dt = self.last_frame_time.elapsed();
                                 // let now = std::time::Instant::now();
                                 let out = unsafe {
                                     draw(
@@ -312,10 +357,7 @@ where
                     self.input_state.mouse_just_released = false;
                     self.input_state.scroll_action = (0.0, 0.0);
 
-                    self.animate_frames -= 1;
-                    if self.animate_frames > 0 {
-                        window.request_redraw();
-                    }
+                    self.animate_guard.update(dt);
 
                     self.last_frame_time = std::time::Instant::now();
                 }

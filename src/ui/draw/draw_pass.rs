@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{collections::HashMap, sync::Arc, usize};
 
 use anyhow::{Result, anyhow};
@@ -14,6 +15,22 @@ use super::InputState;
 use super::traits::{Executor, HasStaticConfig, Intepreter};
 use super::utils::{StaticConfig, resolve_taffy_length};
 use super::vm_state::VMState;
+
+#[allow(dead_code)]
+pub fn pos_exp_clamp(v: f32, f: f32, max: f32, k: f32, dt: Duration) -> f32 {
+    debug_assert!(f > 0.0, "f must be strictly positive");
+    debug_assert!(v > 0.0, "v must be strictly positive");
+    debug_assert!(k > 1.0, "k must be strictly positive");
+
+    if v < max {
+        v + f
+    } else {
+        let delta = v - max;
+        let o = v + f - k * delta * (dt.as_micros() as f32);
+        let o = o.max(max + 1.0); // stop it from springing back into linear region
+        o
+    }
+}
 
 // :::::::-------- Third Pass, Draw ------ :::::
 struct DrawIntepreter<'a, F>
@@ -103,6 +120,18 @@ where
             maybe_active_path: None,
         })
     }
+
+    fn get_node_ctx(&self) -> Result<&LayoutContext> {
+        let ctx = self
+            .tree
+            .get_node_context(self.node)
+            .ok_or(anyhow!("Expect nodes to have context"))?;
+        Ok(ctx)
+    }
+
+    fn get_node_layout(&self) -> &taffy::Layout {
+        self.tree.get_final_layout(self.node)
+    }
 }
 
 impl<'a, F> Executor<VMState, RaggedCursor, StaticConfig> for DrawIntepreter<'a, F>
@@ -127,63 +156,55 @@ where
     F: FnMut(usize) -> () + Clone,
 {
     fn handle_enter(&mut self) -> Result<()> {
-        // if tag.read_as_enter(None).is_ok() {
-        //             /* in enter compute scroll state. */
-        //             let desired_height = layout.size.height.max(
-        //                 ctx.maybe_font_layout
-        //                     .as_ref()
-        //                     .map(|x| x.height())
-        //                     .unwrap_or(0.0),
-        //             );
+        /* We are handling scrolling here. */
+        let desired_height = self.get_node_layout().size.height.max(
+            self.get_node_ctx()?
+                .maybe_font_layout
+                .as_ref()
+                .map(|x| x.height())
+                .unwrap_or(0.0),
+        );
+        let window_size = self.window.inner_size();
+        let window_height = window_size.height as f32;
+        let mut state = self
+            .frame_state
+            .get(&self.cursor.cursor)
+            .cloned()
+            .unwrap_or(CarriedState::new());
 
-        //             if desired_height > window_height {
-        //                 let scroll_y = last_frame_jmps
-        //                     .get(&cursor)
-        //                     .map(|x| x.scroll_amount)
-        //                     .unwrap_or(0.0);
+        if desired_height > window_height {
+            self.y += state.scroll_y;
+        }
 
-        //                 // let scroll_y = scroll_y.clamp(-(desired_height - window_height), 0.0);
-        //                 // let scroll_y =
-        //                 //     soft_clamp(scroll_y, -(desired_height - window_height), 0.0, 0.99);
+        if self.is_hovered {
+            // if self.input_state.scroll_action.1 < 0.0 && state.scroll_y <= 0.0 {
+            //     state.scroll_y = -pos_exp_clamp(
+            //         state.scroll_y.abs(),
+            //         self.input_state.scroll_action.1.abs(),
+            //         desired_height - window_height,
+            //         0.005,
+            //         self.config.get_dt(),
+            //     );
+            // } else if self.input_state.scroll_action.1 > 0.0 && state.scroll_y >= 0.0 {
+            //     state.scroll_y = pos_exp_clamp(
+            //         state.scroll_y.abs(),
+            //         self.input_state.scroll_action.1.abs(),
+            //         0.0,
+            //         0.005,
+            //         self.config.get_dt(),
+            //     );
+            // } else {
+            //     state.scroll_y += self.input_state.scroll_action.1;
+            // }
+            // ^^^^ this implemnnts rubber banding around the edges and works but there is weird jumoy ness that comes from winit animations I think...
 
-        //                 let scroll_y = scroll_decay(
-        //                     scroll_y,
-        //                     dt,
-        //                     -(desired_height - window_height),
-        //                     0.0,
-        //                     5000.78,
-        //                 );
+            state.scroll_y += self.input_state.scroll_action.1;
+            state.scroll_y = state.scroll_y.clamp(-(desired_height - window_height), 0.0);
 
-        //                 /* looks like we're scolling waaa */
-        //                 canvas.translate((0.0, scroll_y));
+            self.next_frame_state.insert(self.cursor.cursor, state);
+        }
 
-        //                 if is_hovered {
-        //                     let mut state = last_frame_jmps
-        //                         .get(&cursor)
-        //                         .cloned()
-        //                         .unwrap_or(CarriedState::new());
-        //                     // let next_scroll_y = state.scroll_amount + input_state.scroll_action.1;
-        //                     // let next_scroll_y =
-        //                     //     next_scroll_y.clamp(-(desired_height - window_height), 0.0);
-
-        //                     let next_scroll_y = if input_state.scroll_action.1.abs() < 0.5 {
-        //                         scroll_decay(
-        //                             state.scroll_amount,
-        //                             dt,
-        //                             -(desired_height - window_height),
-        //                             0.0,
-        //                             50.78,
-        //                         )
-        //                     } else {
-        //                         state.scroll_amount + input_state.scroll_action.1
-        //                     };
-
-        //                     state.scroll_amount = next_scroll_y;
-
-        //                     next_last_frame_jmps.insert(cursor, state);
-        //                 }
-        //             }
-        Ok(()) /* scoll */
+        Ok(())
     }
 
     fn handle_rect(

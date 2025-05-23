@@ -347,12 +347,12 @@ pub fn draw<F>(
     base_font_size: f32,
     library: &HashMap<usize, Vec<u8>>,
     frame_state: &HashMap<*const u8, CarriedState>,
-    _dt: Duration,
+    dt: Duration,
 ) -> Result<HashMap<*const u8, CarriedState>>
 where
     F: FnMut(usize) -> () + Clone,
 {
-    let config = StaticConfig::new(file_start, base_font_size, display_scale);
+    let config = StaticConfig::new(file_start, base_font_size, display_scale, dt);
 
     let region_start = unsafe { file_start.add(loc) };
     let (root, mut tree) = layout_pass(region_start, file_end, config, library, frame_state)?;

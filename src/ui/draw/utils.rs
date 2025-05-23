@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::TaggedWord;
 use super::traits::{HasStaticConfig, ReadIn};
 use anyhow::{Context, Result};
@@ -9,13 +11,21 @@ pub(super) struct StaticConfig {
     file_start: *const u8,
     base_font_size: f32,
     display_scale: f32,
+    #[allow(dead_code)]
+    dt: Duration,
 }
 impl StaticConfig {
-    pub fn new(file_start: *const u8, base_font_size: f32, display_scale: f32) -> Self {
+    pub fn new(
+        file_start: *const u8,
+        base_font_size: f32,
+        display_scale: f32,
+        dt: Duration,
+    ) -> Self {
         Self {
             file_start,
             base_font_size,
             display_scale,
+            dt,
         }
     }
 }
@@ -31,6 +41,10 @@ impl HasStaticConfig for StaticConfig {
 
     fn display_scale(&self) -> f32 {
         self.display_scale
+    }
+
+    fn get_dt(&self) -> Duration {
+        self.dt
     }
 }
 

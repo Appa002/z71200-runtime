@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{Result, anyhow};
 use skia_safe::Color;
 use winit::window::CursorIcon;
@@ -9,6 +11,8 @@ pub(super) trait HasStaticConfig {
     fn file_start(&self) -> *const u8;
     fn base_font_size(&self) -> f32;
     fn display_scale(&self) -> f32;
+    #[allow(dead_code)]
+    fn get_dt(&self) -> Duration;
 }
 
 /* :::::---- Defines the structure of multi tagged word sequences ie how an instruction demands parameters ----::::: */

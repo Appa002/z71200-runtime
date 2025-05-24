@@ -14,7 +14,6 @@ pub(super) struct LinearCursor {
 
     pub cursor: *const u8,
     last_read: Option<TaggedWord>,
-    lib_jmp_depth: i32,
     element_depth: i32,
 }
 impl LinearCursor {
@@ -24,20 +23,11 @@ impl LinearCursor {
             region_end,
             cursor: region_start,
             last_read: None,
-            lib_jmp_depth: 0,
             element_depth: 0,
         }
     }
 }
 impl LinearCursor {
-    pub fn jmp_lib(&mut self, dest: *const u8) {
-        self.cursor = dest;
-        self.lib_jmp_depth += 1;
-    }
-    pub fn ret_lib(&mut self, ret: *const u8) {
-        self.cursor = ret;
-        self.lib_jmp_depth -= 1;
-    }
     pub fn add_depth(&mut self) {
         self.element_depth += 1;
     }
@@ -47,9 +37,8 @@ impl LinearCursor {
 }
 impl HasCursor for LinearCursor {
     unsafe fn read_from_cursor(&mut self) -> Option<TaggedWord> {
-        if self.lib_jmp_depth > 0
-            || (self.element_depth > 0
-                && (self.cursor >= self.region_start && self.cursor < self.region_end))
+        if self.element_depth > 0
+            && (self.cursor >= self.region_start && self.cursor < self.region_end)
         {
             self.last_read = Some(unsafe { TaggedWord::read_in(&mut self.cursor) });
             self.last_read

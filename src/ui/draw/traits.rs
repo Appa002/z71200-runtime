@@ -132,10 +132,7 @@ where
                 Tag::ClosedLatch => {
                     self.handle_closed_latch(tagged_word.read_as_closed_latch()?)?
                 }
-                Tag::LibraryCall => {
-                    self.handle_library_call(tagged_word.read_as_library_call()?)?
-                }
-                Tag::LibraryReturn => self.handle_library_return()?,
+
                 Tag::PushArg => self.blanket_handle_push_arg()?,
                 Tag::LoadReg => {
                     self.blanket_handle_set_reg(tagged_word.read_as_load_register()?)?
@@ -393,12 +390,6 @@ pub(super) trait Intepreter {
         Ok(())
     }
     fn handle_leave(&mut self) -> Result<()> {
-        Ok(())
-    }
-    fn handle_library_call(&mut self, _id: usize) -> Result<()> {
-        Ok(())
-    }
-    fn handle_library_return(&mut self) -> Result<()> {
         Ok(())
     }
     fn handle_width(&mut self, _x: taffy::LengthPercentageAuto) -> Result<()> {

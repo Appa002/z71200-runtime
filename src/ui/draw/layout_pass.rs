@@ -31,13 +31,12 @@ struct LayoutIntepreter<'a> {
     state: VMState,
     cursor: LinearCursor,
 
-    library: &'a HashMap<usize, Vec<u8>>,
     last_frame_state: &'a HashMap<*const u8, CarriedState>,
 
     tree: TaffyTree<LayoutContext>,
     node_stack: Vec<NodeId>,
     cur_start_ptr: *const u8,
-    call_stack: Vec<*const u8>,
+    // call_stack: Vec<*const u8>,
     root: NodeId,
 }
 impl<'a> LayoutIntepreter<'a> {
@@ -45,7 +44,6 @@ impl<'a> LayoutIntepreter<'a> {
         region_start: *const u8,
         region_end: *const u8,
         config: StaticConfig,
-        library: &'a HashMap<usize, Vec<u8>>,
         last_frame_state: &'a HashMap<*const u8, CarriedState>,
     ) -> Result<Self> {
         assert!(
@@ -76,8 +74,6 @@ impl<'a> LayoutIntepreter<'a> {
             tree,
             node_stack,
             cur_start_ptr: region_start,
-            call_stack: Vec::new(),
-            library,
             last_frame_state,
             root,
         })
@@ -167,29 +163,6 @@ impl<'a> Intepreter for LayoutIntepreter<'a> {
 
     fn handle_leave(&mut self) -> Result<()> {
         self.leave_child()?;
-        self.cur_start_ptr = self.cursor.cursor;
-        Ok(())
-    }
-
-    fn handle_library_call(&mut self, id: usize) -> Result<()> {
-        let code_ptr = self
-            .library
-            .get(&id)
-            .ok_or(anyhow!("Requested library element {} not found.", id))?
-            .as_ptr();
-        self.call_stack.push(self.cursor.cursor);
-        // self.enter_child()?; /* lib_call is implicit node enter */
-        self.cursor.jmp_lib(code_ptr);
-        self.cur_start_ptr = self.cursor.cursor;
-        Ok(())
-    }
-
-    fn handle_library_return(&mut self) -> Result<()> {
-        // self.leave_child()?;
-        let ret_ptr = self.call_stack.pop().ok_or(anyhow!(
-            "`InlineReturn` tag called without being in library code."
-        ))?;
-        self.cursor.ret_lib(ret_ptr);
         self.cur_start_ptr = self.cursor.cursor;
         Ok(())
     }
@@ -433,7 +406,6 @@ pub(super) fn layout_pass(
     region_start: *const u8,
     region_end: *const u8,
     config: StaticConfig,
-    library: &HashMap<usize, Vec<u8>>,
     last_frame_state: &HashMap<*const u8, CarriedState>,
 ) -> Result<(NodeId, TaffyTree<LayoutContext>)> {
     assert!(
@@ -441,15 +413,14 @@ pub(super) fn layout_pass(
         "region_start not aligned"
     );
 
-    let mut intepreter =
-        LayoutIntepreter::new(region_start, region_end, config, library, last_frame_state)?;
+    let mut intepreter = LayoutIntepreter::new(region_start, region_end, config, last_frame_state)?;
 
     let mut trace = Vec::new();
     while let Some(_) = intepreter.advance(&mut trace).with_context(|| {
         let n = 10;
         let slice = trace.get(trace.len().saturating_sub(n)..).unwrap_or(&[]);
 
-        let mut out = String::from("\n***Context***\n");
+        let mut out = String::from("\n***Context [Layout Pass]***\n");
         for (i, tagged_word) in slice.iter().enumerate() {
             let color = if i == n - 1 { "\x1B[31m" } else { "\x1B[0m" };
 

@@ -5,11 +5,8 @@ pub mod draw;
 pub mod renderer;
 
 use anyhow::{Result, anyhow};
-use assembler::assemble;
 use context::VulkanRenderContext;
 use draw::{CarriedState, draw};
-// use debug::debug_print_layout;
-use lazy_static::lazy_static;
 use parley::{FontContext, LayoutContext};
 use renderer::VulkanRenderer;
 use skia_safe::{Color, Color4f, Font, FontMgr, FontStyle, Paint};
@@ -30,20 +27,20 @@ use winit::{
     window::{CursorIcon, Window},
 };
 
-lazy_static! {
-    pub static ref LIBRARY: HashMap<usize, Vec<u8>> = {
-        let mut m = HashMap::new();
-        m.insert(
-            0,
-            assemble(include_str!("lib/0_rounded_rect.txt")).expect("couldn't assemble std lib"),
-        );
-        m.insert(
-            1,
-            assemble(include_str!("lib/1_button_primary.txt")).expect("couldn't assemble std lib"),
-        );
-        m
-    };
-}
+// lazy_static! {
+//     pub static ref LIBRARY: HashMap<usize, Vec<u8>> = {
+//         let mut m = HashMap::new();
+//         m.insert(
+//             0,
+//             assemble(include_str!("lib/0_rounded_rect.txt")).expect("couldn't assemble std lib"),
+//         );
+//         m.insert(
+//             1,
+//             assemble(include_str!("lib/1_button_primary.txt")).expect("couldn't assemble std lib"),
+//         );
+//         m
+//     };
+// }
 
 #[derive(Default, Clone, Copy)]
 pub struct InputState {
@@ -305,7 +302,6 @@ where
                                             &mut self.layout_context,
                                             display_scale,
                                             base_font_size,
-                                            &LIBRARY,
                                             &self.last_fram_jmps,
                                             dt,
                                         )

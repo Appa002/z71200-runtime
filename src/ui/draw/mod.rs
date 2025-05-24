@@ -83,19 +83,17 @@ pub enum Tag {
     Gap,     /* 26 */
 
     // States
-    Hover,         /* 27 rel_pointer, [... no jmp], [jmp ...] */
-    MousePressed,  /* 28 rel_pointer, [... no jmp], [jmp ...] */
-    Clicked,       /* 29 rel_pointer, [... no jmp], [jmp ...] */
-    OpenLatch,     /* 30 rel_pointer, [... no jmp], [jmp ...] */
-    ClosedLatch,   /* 31 rel_pointer, [... no jmp], [jmp ...] */
-    LibraryCall,   /* 32 word */
-    LibraryReturn, /* 33 */
-    PushArg,       /* 34, any */
-    PullArg,       /* 35 */
-    PullArgOr,     /* 36 [default] */
-    LoadReg,       /* 37 word */
-    FromReg,       /* 38 word */
-    FromRegOr,     /* 39 word */
+    Hover,        /* 27 rel_pointer, [... no jmp], [jmp ...] */
+    MousePressed, /* 28 rel_pointer, [... no jmp], [jmp ...] */
+    Clicked,      /* 29 rel_pointer, [... no jmp], [jmp ...] */
+    OpenLatch,    /* 30 rel_pointer, [... no jmp], [jmp ...] */
+    ClosedLatch,  /* 31 rel_pointer, [... no jmp], [jmp ...] */
+    PushArg,      /* 34, any */
+    PullArg,      /* 35 */
+    PullArgOr,    /* 36 [default] */
+    LoadReg,      /* 37 word */
+    FromReg,      /* 38 word */
+    FromRegOr,    /* 39 word */
 
     // Event
     Event, /* 40 word(id) */
@@ -228,7 +226,6 @@ impl TaggedWord {
     define_reader!(read_as_display, Tag::Display, DisplayOption);
     define_reader!(read_as_font_size, Tag::FontSize, f32);
     define_reader!(read_as_font_alignment, Tag::FontAlignment, StoredAlignment);
-    define_reader!(read_as_library_call, Tag::LibraryCall, usize);
     define_reader!(read_as_load_register, Tag::LoadReg, usize);
 
     pub fn read_as_any_color(&self) -> Result<Color> {
@@ -346,7 +343,6 @@ pub fn draw<F>(
     layout_ctx: &mut parley::LayoutContext<()>,
     display_scale: f32,
     base_font_size: f32,
-    library: &HashMap<usize, Vec<u8>>,
     frame_state: &HashMap<*const u8, CarriedState>,
     dt: Duration,
 ) -> Result<HashMap<*const u8, CarriedState>>
@@ -359,7 +355,7 @@ where
     assert!(unsafe { file_start.add(loc) } as usize % size_of::<usize>() == 0);
 
     let region_start = unsafe { file_start.add(loc) };
-    let (root, mut tree) = layout_pass(region_start, file_end, config, library, frame_state)?;
+    let (root, mut tree) = layout_pass(region_start, file_end, config, frame_state)?;
     tree.compute_layout(
         root,
         taffy::Size {

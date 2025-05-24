@@ -1,6 +1,6 @@
 use std::{collections::HashMap, usize};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use skia_safe::Color;
 use taffy::{NodeId, TaffyTree};
 use winit::window::CursorIcon;
@@ -178,14 +178,14 @@ impl<'a> Intepreter for LayoutIntepreter<'a> {
             .ok_or(anyhow!("Requested library element {} not found.", id))?
             .as_ptr();
         self.call_stack.push(self.cursor.cursor);
-        self.enter_child()?; /* lib_call is implicit node enter */
+        // self.enter_child()?; /* lib_call is implicit node enter */
         self.cursor.jmp_lib(code_ptr);
         self.cur_start_ptr = self.cursor.cursor;
         Ok(())
     }
 
-    fn handle_return(&mut self) -> Result<()> {
-        self.leave_child()?;
+    fn handle_library_return(&mut self) -> Result<()> {
+        // self.leave_child()?;
         let ret_ptr = self.call_stack.pop().ok_or(anyhow!(
             "`InlineReturn` tag called without being in library code."
         ))?;
@@ -438,13 +438,29 @@ pub(super) fn layout_pass(
 ) -> Result<(NodeId, TaffyTree<LayoutContext>)> {
     assert!(
         region_start as usize % size_of::<usize>() == 0,
-        "alraedy cooked"
+        "region_start not aligned"
     );
 
     let mut intepreter =
         LayoutIntepreter::new(region_start, region_end, config, library, last_frame_state)?;
-    while let Some(_) = intepreter.advance()? {
-        // println!("hi");
-    }
+
+    let mut trace = Vec::new();
+    while let Some(_) = intepreter.advance(&mut trace).with_context(|| {
+        let n = 10;
+        let slice = trace.get(trace.len().saturating_sub(n)..).unwrap_or(&[]);
+
+        let mut out = String::from("\n***Context***\n");
+        for (i, tagged_word) in slice.iter().enumerate() {
+            let color = if i == n - 1 { "\x1B[31m" } else { "\x1B[0m" };
+
+            out.push_str(&format!(
+                "{}{:?} {:?}\x1B[0m\n",
+                color,
+                tagged_word.tag,
+                unsafe { tagged_word.word._debug_bytes }
+            ));
+        }
+        out
+    })? {}
     Ok((intepreter.root, intepreter.tree))
 }

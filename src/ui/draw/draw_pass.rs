@@ -38,7 +38,7 @@ where
     F: FnMut(usize) -> () + Clone,
 {
     config: StaticConfig,
-    state: VMState,
+    state: &'a mut VMState,
     cursor: RaggedCursor,
 
     font_family: String,
@@ -78,6 +78,7 @@ where
         y: f32,
         tree: &'a TaffyTree<LayoutContext>,
         node: NodeId,
+        state: &'a mut VMState,
         cb_push_evt: F,
         regions: Vec<(*const u8, *const u8)>,
         frame_state: &'a HashMap<*const u8, CarriedState>,
@@ -105,7 +106,7 @@ where
             height: layout.size.height,
             config,
             is_hovered,
-            state: VMState::new(),
+            state,
             cursor: RaggedCursor::new(regions)?,
             canvas,
             frame_state,
@@ -434,15 +435,15 @@ where
         let ty = self.y + resolve_taffy_length(ty, layout.size.height);
         let x = self.x + resolve_taffy_length(x, layout.size.width);
         let y = self.y + resolve_taffy_length(y, layout.size.height);
-        let r = self.y
-            + resolve_taffy_length(
-                r,
-                if tx > ty {
-                    layout.size.width
-                } else {
-                    layout.size.height
-                },
-            );
+        let r = resolve_taffy_length(
+            r,
+            if tx > ty {
+                layout.size.width
+            } else {
+                layout.size.height
+            },
+        );
+
         path.arc_to_tangent((tx, ty), (x, y), r);
         Ok(())
     }
@@ -481,6 +482,7 @@ pub(super) fn draw_pass<F>(
     canvas: &Canvas,
     px: f32,
     py: f32,
+    vm_state: &mut VMState,
     tree: &TaffyTree<LayoutContext>,
     node: NodeId,
     cb_push_evt: F,
@@ -507,6 +509,7 @@ where
         y,
         tree,
         node,
+        vm_state,
         cb_push_evt.clone(),
         regions,
         frame_state,
@@ -514,7 +517,9 @@ where
         input_state,
         config,
     )?;
-    while let Some(_) = intepreter.advance()? {}
+
+    let mut trace = Vec::new();
+    while let Some(_) = intepreter.advance(&mut trace)? {}
 
     for child in tree.child_ids(node) {
         draw_pass(
@@ -522,6 +527,7 @@ where
             canvas,
             x,
             y,
+            vm_state,
             tree,
             child,
             cb_push_evt.clone(),

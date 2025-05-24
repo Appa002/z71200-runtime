@@ -142,7 +142,10 @@ pub(super) fn text_pass(
     let regions = ctx.ragged_members.clone();
     let mut intepreter =
         TextLayoutIntepreter::new(tree, node, regions, font_context, layout_context, config)?;
-    while let Some(_) = intepreter.advance()? {}
+
+    let mut trace = Vec::new();
+    while let Some(_) = intepreter.advance(&mut trace)? {}
+
     let children: Vec<_> = tree.child_ids(node).collect();
     for child in children {
         text_pass(tree, child, font_context, layout_context, config)?;

@@ -14,6 +14,7 @@ use parley::FontContext;
 use skia_safe::{Canvas, Color, HSV, RGB};
 use strum::{EnumCount, EnumString};
 use utils::StaticConfig;
+use vm_state::VMState;
 use winit::window::{CursorIcon, Window};
 
 use draw_pass::draw_pass;
@@ -82,19 +83,19 @@ pub enum Tag {
     Gap,     /* 26 */
 
     // States
-    Hover,        /* 27 rel_pointer, [... no jmp], [jmp ...] */
-    MousePressed, /* 28 rel_pointer, [... no jmp], [jmp ...] */
-    Clicked,      /* 29 rel_pointer, [... no jmp], [jmp ...] */
-    OpenLatch,    /* 30 rel_pointer, [... no jmp], [jmp ...] */
-    ClosedLatch,  /* 31 rel_pointer, [... no jmp], [jmp ...] */
-    LibraryCall,  /* 32 word */
-    Return,       /* 33 */
-    PushArg,      /* 34, any */
-    PullArg,      /* 35 */
-    PullArgOr,    /* 36 [default] */
-    LoadReg,      /* 37 word */
-    FromReg,      /* 38 word */
-    FromRegOr,    /* 39 word */
+    Hover,         /* 27 rel_pointer, [... no jmp], [jmp ...] */
+    MousePressed,  /* 28 rel_pointer, [... no jmp], [jmp ...] */
+    Clicked,       /* 29 rel_pointer, [... no jmp], [jmp ...] */
+    OpenLatch,     /* 30 rel_pointer, [... no jmp], [jmp ...] */
+    ClosedLatch,   /* 31 rel_pointer, [... no jmp], [jmp ...] */
+    LibraryCall,   /* 32 word */
+    LibraryReturn, /* 33 */
+    PushArg,       /* 34, any */
+    PullArg,       /* 35 */
+    PullArgOr,     /* 36 [default] */
+    LoadReg,       /* 37 word */
+    FromReg,       /* 38 word */
+    FromRegOr,     /* 39 word */
 
     // Event
     Event, /* 40 word(id) */
@@ -371,11 +372,13 @@ where
 
     text_pass(&mut tree, root, font_ctx, layout_ctx, config)?;
     let mut next_frame_state: HashMap<*const u8, CarriedState> = HashMap::new();
+    let mut vm_state = VMState::new();
     draw_pass(
         window,
         canvas,
         0.0,
         0.0,
+        &mut vm_state,
         &mut tree,
         root,
         cb_push_evt,

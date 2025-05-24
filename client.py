@@ -278,23 +278,28 @@ cursor = write_tagged_word(cursor, 1, 10.0)
 
 cursor = write_tagged_word(cursor, 25, 1) # Display, FlexRow
 
-def child(cursor):
-    cursor = write_tagged_word(cursor, 9, None) # Enter (root)
-    cursor = write_tagged_word(cursor, 21, None)# Width
-    cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
-    cursor = write_tagged_word(cursor, 22, None)# Height
-    cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
+cursor = write_tagged_word(cursor, 9, None) # Enter (root)
+cursor = write_tagged_word(cursor, 32, 1) # PrimaryButton
+cursor = write_tagged_word(cursor, 10, None) # Leave (root)
 
-    cursor = write_tagged_word(cursor, 41, None) #Text, x, y, ptr
-    cursor = write_tagged_word(cursor, 1, 0) # Pxs, 0
-    cursor = write_tagged_word(cursor, 1, 0) # Pxs 0
-    cursor = write_tagged_word(cursor, 42, str) # TextPtr <ptr>
 
-    cursor = write_tagged_word(cursor, 10, None) # Leave (root)
-    return cursor
+# def child(cursor):
+#     cursor = write_tagged_word(cursor, 9, None) # Enter (root)
+#     cursor = write_tagged_word(cursor, 21, None)# Width
+#     cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
+#     cursor = write_tagged_word(cursor, 22, None)# Height
+#     cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
 
-cursor = child(cursor)
-cursor = child(cursor)
+#     cursor = write_tagged_word(cursor, 41, None) #Text, x, y, ptr
+#     cursor = write_tagged_word(cursor, 1, 0) # Pxs, 0
+#     cursor = write_tagged_word(cursor, 1, 0) # Pxs 0
+#     cursor = write_tagged_word(cursor, 42, str) # TextPtr <ptr>
+
+#     cursor = write_tagged_word(cursor, 10, None) # Leave (root)
+#     return cursor
+
+# cursor = child(cursor)
+# cursor = child(cursor)
 
 
 cursor = write_tagged_word(cursor, 10, None) # Leave (root)

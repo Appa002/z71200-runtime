@@ -61,13 +61,13 @@ where
                 (pulled.tag, pulled.word)
             }
             Tag::PullArgOr => {
+                /* read the next word, and provide it as the default if nothing is on the stack */
+                let default = unsafe { self.get_cursor().read_from_cursor() }
+                    .ok_or(anyhow!("Unexpected EoF"))?;
+
                 if let Some(pulled) = &self.get_vm_state().stack_pop() {
                     (pulled.tag, pulled.word)
                 } else {
-                    /* read the next word, and provide it as the default */
-                    let default = unsafe { self.get_cursor().read_from_cursor() }
-                        .ok_or(anyhow!("Unexpected EoF"))?;
-                    // maybe_cursor = Some(cursor);
                     (default.tag, default.word)
                 }
             }
@@ -79,19 +79,19 @@ where
                         "FromReg called for register id {}, but it is empty",
                         &unsafe { tagged_word.word.word }
                     ))?;
+
                 (pulled.tag, pulled.word)
             }
             Tag::FromRegOr => {
+                /* read the next word, and provide it as the default or pull if reg empty*/
+                let default = unsafe { self.get_cursor().read_from_cursor() }
+                    .ok_or(anyhow!("Unexpected EoF"))?;
                 if let Some(pulled) = self
                     .get_vm_state()
                     .regs_get(unsafe { tagged_word.word.word })
                 {
                     (pulled.tag, pulled.word)
                 } else {
-                    /* read the next word, and provide it as the default */
-                    let default = unsafe { self.get_cursor().read_from_cursor() }
-                        .ok_or(anyhow!("Unexpected EoF"))?;
-                    // maybe_cursor = Some(cursor);
                     (default.tag, default.word)
                 }
             }
@@ -107,9 +107,10 @@ where
         Ok(None)
     }
 
-    fn advance(&mut self) -> Result<Option<()>> {
+    fn advance(&mut self, trace: &mut Vec<TaggedWord>) -> Result<Option<()>> {
         let maybe_tagged_word = unsafe { self.get_cursor().read_from_cursor() };
         if let Some(tagged_word) = maybe_tagged_word {
+            trace.push(tagged_word);
             match tagged_word.tag {
                 Tag::Enter => self.handle_enter()?,
                 Tag::Leave => self.handle_leave()?,
@@ -134,7 +135,7 @@ where
                 Tag::LibraryCall => {
                     self.handle_library_call(tagged_word.read_as_library_call()?)?
                 }
-                Tag::Return => self.handle_return()?,
+                Tag::LibraryReturn => self.handle_library_return()?,
                 Tag::PushArg => self.blanket_handle_push_arg()?,
                 Tag::LoadReg => {
                     self.blanket_handle_set_reg(tagged_word.read_as_load_register()?)?
@@ -397,7 +398,7 @@ pub(super) trait Intepreter {
     fn handle_library_call(&mut self, _id: usize) -> Result<()> {
         Ok(())
     }
-    fn handle_return(&mut self) -> Result<()> {
+    fn handle_library_return(&mut self) -> Result<()> {
         Ok(())
     }
     fn handle_width(&mut self, _x: taffy::LengthPercentageAuto) -> Result<()> {

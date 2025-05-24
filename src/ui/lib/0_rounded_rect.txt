@@ -9,13 +9,13 @@ Height
 Pxs, @height
 
 ;; Args
-LoadReg, w10
+LoadReg, w1
 PullArgOr
 Rgb, b0000ff
 
 ;; Drawing
 Color
-FromReg, w12
+FromReg, w1
 
 BeginPath
 
@@ -70,4 +70,4 @@ Pxs, @radius
 ClosePath
 EndPath
 
-Return
+LibraryReturn

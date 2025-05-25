@@ -122,6 +122,7 @@ where
                 Tag::Padding => self.read_as_padding()?,
                 Tag::Margin => self.read_as_margin()?,
                 Tag::Display => self.handle_display(tagged_word.read_as_display()?)?,
+                Tag::RoundedRect => self.read_as_rounded_rect()?,
                 Tag::Gap => self.read_as_gap()?,
                 Tag::Hover => self.handle_hover(tagged_word.read_as_hover()?)?,
                 Tag::MousePressed => {
@@ -261,6 +262,27 @@ where
             .ok_or(anyhow!("Early EOF"))?
             .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
         self.handle_rect(x, y, w, h)?;
+        Ok(())
+    }
+
+    fn read_as_rounded_rect(&mut self) -> Result<()> {
+        let x = unsafe { self.read_from_cursor_with_arg() }?
+            .ok_or(anyhow!("Early EOF"))?
+            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+        let y = unsafe { self.read_from_cursor_with_arg() }?
+            .ok_or(anyhow!("Early EOF"))?
+            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+        let w = unsafe { self.read_from_cursor_with_arg() }?
+            .ok_or(anyhow!("Early EOF"))?
+            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+        let h = unsafe { self.read_from_cursor_with_arg() }?
+            .ok_or(anyhow!("Early EOF"))?
+            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+        let r = unsafe { self.read_from_cursor_with_arg() }?
+            .ok_or(anyhow!("Early EOF"))?
+            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+
+        self.handle_rounded_rect(x, y, w, h, r)?;
         Ok(())
     }
 
@@ -539,6 +561,17 @@ pub(super) trait Intepreter {
     }
 
     fn handle_end_path(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn handle_rounded_rect(
+        &mut self,
+        _x: taffy::LengthPercentage,
+        _y: taffy::LengthPercentage,
+        _width: taffy::LengthPercentageAuto,
+        _height: taffy::LengthPercentageAuto,
+        _r: taffy::LengthPercentageAuto,
+    ) -> Result<()> {
         Ok(())
     }
 }

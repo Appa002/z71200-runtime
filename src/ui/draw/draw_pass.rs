@@ -225,6 +225,43 @@ where
         Ok(())
     }
 
+    fn handle_rounded_rect(
+        &mut self,
+        x: taffy::LengthPercentage,
+        y: taffy::LengthPercentage,
+        width: taffy::LengthPercentageAuto,
+        height: taffy::LengthPercentageAuto,
+        r: taffy::LengthPercentageAuto,
+    ) -> Result<()> {
+        let layout = self.tree.get_final_layout(self.node);
+        let x = self.x + resolve_taffy_length(x, layout.size.width);
+        let y = self.y + resolve_taffy_length(y, layout.size.height);
+        let width = resolve_taffy_length(width, layout.size.width);
+        let height = resolve_taffy_length(height, layout.size.height);
+        let r = resolve_taffy_length(
+            r,
+            if x > y {
+                layout.size.width
+            } else {
+                layout.size.height
+            },
+        );
+
+        let mut path = Path::new();
+        path.move_to((x + r, y));
+        path.line_to((x + width - r, y));
+        path.arc_to_tangent((x + width, y), (x + width, y + height), r);
+        path.line_to((x + width, y + height - r));
+        path.arc_to_tangent((x + width, y + height), (x + width - r, y + height), r);
+        path.line_to((x + r, y + height));
+        path.arc_to_tangent((x, y + height), (x, y + height - r), r);
+        path.line_to((x, y + r));
+        path.arc_to_tangent((x, y), (x + r, y), r);
+        path.close();
+        self.canvas.draw_path(&path, &self.paint);
+        Ok(())
+    }
+
     fn handle_pencil_color(&mut self, color: Color) -> Result<()> {
         self.paint.set_color(color);
         Ok(())
@@ -296,7 +333,6 @@ where
         {
             self.cursor.cursor = unsafe { self.cursor.cursor.add(rel_ptr) };
         }
-
         Ok(())
     }
 

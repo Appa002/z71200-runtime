@@ -61,53 +61,54 @@ pub enum Tag {
     Leave, /*10 any */
 
     // Shape
-    Rect,      /* 11 x, y, width, height */
-    BeginPath, /* 12 */
-    EndPath,   /* 13 */
-    MoveTo,    /* 14 x, y */
-    LineTo,    /* 15 x, y */
-    QuadTo,    /* 16 cx, cy, x, y */
-    CubicTo,   /* 17 cx1, cy1, cx2, cy2, x, y */
-    ArcTo,     /* 18 */
-    ClosePath, /* 19  */
+    Rect,        /* 11 x, y, width, height */
+    RoundedRect, /* 12 x, y, width, height, radius */
+    BeginPath,   /* 13 */
+    EndPath,     /* 14 */
+    MoveTo,      /* 15 x, y */
+    LineTo,      /* 16 x, y */
+    QuadTo,      /* 17 cx, cy, x, y */
+    CubicTo,     /* 18 cx1, cy1, cx2, cy2, x, y */
+    ArcTo,       /* 19 */
+    ClosePath,   /* 20*/
 
     // Pencil
-    Color, /* 20 _, TaggedWord{Rgb, param}  */
+    Color, /* 21 _, TaggedWord{Rgb, param}  */
 
     // Layout
-    Width,   /* 21 _, Pxs, param */
-    Height,  // 22
-    Padding, // 23 _, left, top, right, bottom
-    Margin,  // 24
-    Display, /* 25 display option */
-    Gap,     /* 26 */
+    Width,   /* 22 _, Pxs, param */
+    Height,  // 23
+    Padding, // 24 _, left, top, right, bottom
+    Margin,  // 25
+    Display, /* 26 display option */
+    Gap,     /* 27 */
 
     // States
-    Hover,        /* 27 rel_pointer, [... no jmp], [jmp ...] */
-    MousePressed, /* 28 rel_pointer, [... no jmp], [jmp ...] */
-    Clicked,      /* 29 rel_pointer, [... no jmp], [jmp ...] */
-    OpenLatch,    /* 30 rel_pointer, [... no jmp], [jmp ...] */
-    ClosedLatch,  /* 31 rel_pointer, [... no jmp], [jmp ...] */
-    PushArg,      /* 34, any */
-    PullArg,      /* 35 */
-    PullArgOr,    /* 36 [default] */
-    LoadReg,      /* 37 word */
-    FromReg,      /* 38 word */
-    FromRegOr,    /* 39 word */
+    Hover,        /* 28 rel_pointer, [... no jmp], [jmp ...] */
+    MousePressed, /* 29 rel_pointer, [... no jmp], [jmp ...] */
+    Clicked,      /* 30 rel_pointer, [... no jmp], [jmp ...] */
+    OpenLatch,    /* 31 rel_pointer, [... no jmp], [jmp ...] */
+    ClosedLatch,  /* 32 rel_pointer, [... no jmp], [jmp ...] */
+    PushArg,      /* 33, any */
+    PullArg,      /* 34 */
+    PullArgOr,    /* 35 [default] */
+    LoadReg,      /* 36 word */
+    FromReg,      /* 37 word */
+    FromRegOr,    /* 38 word */
 
     // Event
-    Event, /* 40 word(id) */
+    Event, /* 39 word(id) */
 
     // Text
-    Text,          /* 41 x, y, ptr */
-    TextPtr,       /* 42 ptr  */
-    FontSize,      /* 43 real */
-    FontAlignment, /* 44 alignment */
-    FontFamily,    /* 45 _, TextPtr */
+    Text,          /* 40 x, y, ptr */
+    TextPtr,       /* 41 ptr  */
+    FontSize,      /* 42 real */
+    FontAlignment, /* 43 alignment */
+    FontFamily,    /* 44 _, TextPtr */
 
     // Cursors
-    CursorDefault, /* 46 */
-    CursorPointer, /* 47 */
+    CursorDefault, /* 45 */
+    CursorPointer, /* 46 */
 }
 
 #[derive(Clone, Copy)]

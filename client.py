@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 import os
 import socket
 import json
@@ -22,7 +23,6 @@ Fusce vel urna semper, tincidunt lectus congue, condimentum urna. Ut et auctor d
 # Preamble
 EXPECTED_PROTOCOL = 1
 
-print("Initializing")
 print("Protocol Ver:", os.environ["z71200_PROTOCOL_VERSION"])
 print("SHM File:", os.environ["z71200_SHM"])
 print("SEM Lock:", os.environ["z71200_SEM_LOCK"])
@@ -102,7 +102,6 @@ class Z71200Context:
             self.data_ptr[loc + i] = b
 
         _sem_post(self.sem_lock, self.libc)
-        _sem_post(self.sem_ready, self.libc)
 
     def redraw(self):
         _sem_post(self.sem_ready, self.libc)
@@ -147,64 +146,7 @@ class Z71200Context:
         size = struct.unpack('<I', self.recv_exact(4))[0] # little-endian u32 indicating message size
         return json.loads(self.recv_exact(size).decode('utf-8'))
 
-
-#########
-def print_memory(ptr, n_bytes, bytes_per_row=32):
-    """
-    Print n_bytes of memory from a pointer in a readable format with offsets from start
-    and hexadecimal and ASCII representation.
-
-    Args:
-        ptr: A ctypes pointer to the memory location to print
-        n_bytes: Number of bytes to print
-        bytes_per_row: Number of bytes to display per row (default 32)
-    """
-    # Cast the pointer to an array of unsigned bytes
-    byte_array = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_uint8))
-
-
-    # Print header
-    print(f"{'Offset':12} | {'Hexadecimal':{bytes_per_row*3}} | {'ASCII':{bytes_per_row}}")
-    print("-" * (12 + 3 + bytes_per_row*3 + 3 + bytes_per_row))
-
-    # Print rows
-    for i in range(0, n_bytes, bytes_per_row):
-        # Calculate how many bytes to print in this row (handle last row)
-        bytes_in_row = min(bytes_per_row, n_bytes - i)
-
-        # Offset from start (instead of absolute address)
-        offset_str = f"{i:04}"
-
-        # Hex values
-        hex_values = []
-        ascii_chars = []
-
-        for j in range(bytes_in_row):
-            byte_value = byte_array[i + j]
-            if byte_value == 0:
-                hex_values.append(f"{byte_value:02x}")
-            else:
-                hex_values.append(f"\033[0;31m{byte_value:02x}\033[0m")
-
-            # Convert to ASCII (printable characters only)
-            if 32 <= byte_value <= 126:  # Printable ASCII range
-                ascii_chars.append(chr(byte_value))
-            else:
-                ascii_chars.append('.')
-
-        # Pad hex values if needed
-        hex_str = ' '.join(hex_values).ljust(bytes_per_row * 3)
-        ascii_str = ''.join(ascii_chars).ljust(bytes_per_row)
-
-        # Print the row
-        print(f"{offset_str:12} | {hex_str} | {ascii_str}")
-
-####
-
-
 # Std library
-
-
 ctx = Z71200Context()
 
 
@@ -223,6 +165,8 @@ def write_tagged_word(ptr, tag, word):
     if isinstance(word, float):
         word = struct.pack('<f', word)
         if len(word) < MACHINE_WORD: word = word + b'\x00' * (MACHINE_WORD - len(word))
+    if isinstance(word, bytes) and len(word) < MACHINE_WORD:
+        word = word + b'\x00' * (MACHINE_WORD - len(word))
 
     assert isinstance(word, bytes)
     assert len(word) == MACHINE_WORD
@@ -238,78 +182,254 @@ def aloc_tagged_str(str: str):
     ctx.safe_write(bytes, ptr + 2*MACHINE_WORD)
     return ptr
 
-# str = aloc_tagged_str(IPSUM);
-# root = aloc(2 * MACHINE_WORD * 64)
-# cursor = root
-# cursor = write_tagged_word(cursor, 9, None) # Enter (root)
-# cursor = write_tagged_word(cursor, 23, None) # Padding
-# cursor = write_tagged_word(cursor, 1, 10.0) # Pxs
-# cursor = write_tagged_word(cursor, 1, 10.0) # Pxs
-# cursor = write_tagged_word(cursor, 1, 10.0) # Pxs
-# cursor = write_tagged_word(cursor, 1, 10.0) # Pxs
+# Drawing
+def rgb(str): return ('rgb', bytes.fromhex(str))
+def rgba(str): return ('rgba', bytes.fromhex(str))
+def hsv(str): return ('hsv', bytes.fromhex(str))
+def hsva(str): return ('hsva', bytes.fromhex(str))
+def write_color(cursor, v):
+    if v[0] == "rgb": return write_tagged_word(cursor, 5, v[1])
+    elif v[0] == "rgba": return write_tagged_word(cursor, 7, v[1])
+    elif v[0] == "hsv": return write_tagged_word(cursor, 6, v[1])
+    elif v[0] == "hsva": return write_tagged_word(cursor, 8, v[1])
+    else: raise Exception("Unknown value for color.")
 
-# cursor = write_tagged_word(cursor, 32, 1) # Library (button)
+def pxs(v): return ('pxs', v)
+def rems(v): return ('rems', v)
+def frac(v): return ('frac', v)
+def auto(): return ('auto', None)
+def write_length(cursor, v):
+    if v[0] == 'pxs': return  write_tagged_word(cursor, 1, float(v[1]))
+    elif v[0] == 'rems': return  write_tagged_word(cursor, 2, float(v[1]))
+    elif v[0] == 'frac': return  write_tagged_word(cursor, 3, float(v[1]))
+    elif v[0] == 'auto': return  write_tagged_word(cursor, 4, None)
+    else: raise Exception("Unknown value for length parameter.")
 
-# cursor = write_tagged_word(cursor, 10, None) # Leave (root)
+def write_either_literal(cursor, v):
+    if v[0] in ['rgb', 'rgba', 'hsv', 'hsva']: return write_color(cursor, v)
+    if v[0] in ['pxs', 'rems', 'frac', 'auto']: return write_length(cursor, v)
+    else: raise Exception("Unknown value for length parameter.")
 
-# set_root(root)
-#
+def color(c):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 21, None)
+        return write_color(cursor, c)
+    return f
+def rect(x, y, width, height):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 11, None)
+        cursor = write_length(cursor, x)
+        cursor = write_length(cursor, y)
+        cursor = write_length(cursor, width)
+        return write_length(cursor, height)
+    return f
+def rounded_rect( x, y, width, height, r):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 12, None)
+        cursor = write_length(cursor, x)
+        cursor = write_length(cursor, y)
+        cursor = write_length(cursor, width)
+        cursor = write_length(cursor, height)
+        return write_length(cursor, r)
+    return f
+
+## Path
+def begin_path(): return lambda cursor: write_tagged_word(cursor, 13, None)
+def end_path(): return lambda cursor: write_tagged_word(cursor, 14, None)
+def move_to(x, y):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 15, None)
+        cursor = write_length(cursor, x)
+        return write_length(cursor, y)
+    return f
+def line_to(x, y):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 16, None)
+        cursor = write_length(cursor, x)
+        return write_length(cursor, y)
+    return f
+def quad_to(cx, cy, x, y):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 17, None)
+        cursor = write_length(cursor, cx)
+        cursor = write_length(cursor, cy)
+        cursor = write_length(cursor, x)
+        return write_length(cursor, y)
+    return f
+def cubic_to(cursor, cx1, cy1, cx2, cy2, x, y):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 18, None)
+        cursor = write_length(cursor, cx1)
+        cursor = write_length(cursor, cy1)
+        cursor = write_length(cursor, cx2)
+        cursor = write_length(cursor, cy2)
+        cursor = write_length(cursor, x)
+        return write_length(cursor, y)
+    return  f
+def arc_to(tx, ty, x, y, r):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 19, None)
+        cursor = write_length(cursor, tx)
+        cursor = write_length(cursor, ty)
+        cursor = write_length(cursor, x)
+        cursor = write_length(cursor, y)
+        return write_length(cursor, r)
+    return f
+def close_path(): return lambda cursor: write_tagged_word(cursor, 20, None)
+
+# Layout
+def width(w):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 22, None)
+        return write_length(cursor, w)
+    return f
+def height(w):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 23, None)
+        return write_length(cursor, w)
+    return f
+
+def padding(left, top, right, bottom):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 24, None)
+        cursor = write_length(cursor, left)
+        cursor = write_length(cursor, top)
+        cursor = write_length(cursor, right)
+        return write_length(cursor, bottom)
+    return f
+def margin(left, top, right, bottom):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 25, None)
+        cursor = write_length(cursor, left)
+        cursor = write_length(cursor, top)
+        cursor = write_length(cursor, right)
+        return write_length(cursor, bottom)
+    return f
+def display(display_option): return lambda cursor: write_tagged_word(cursor, 26, display_option)
+def gap(g):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 27, None)
+        return write_length(cursor, g)
+    return  f
+
+# States
+# def hover( rel_pointer): return write_tagged_word(cursor, 28, rel_pointer)
+# def mouse_pressed(cursor, rel_pointer): return write_tagged_word(cursor, 29, rel_pointer)
+# def clicked(cursor, rel_pointer): return write_tagged_word(cursor, 30, rel_pointer)
+# def open_latch(cursor, rel_pointer): return write_tagged_word(cursor, 31, rel_pointer)
+# def closed_latch(cursor, rel_pointer): return write_tagged_word(cursor, 32, rel_pointer)
+# def push_arg(cursor, arg): return write_tagged_word(cursor, 33, arg)
+# def pull_arg(cursor): return write_tagged_word(cursor, 34, None)
+# def pull_arg_or(cursor, default_f):
+#     cursor = write_tagged_word(cursor, 35, None)
+#     return default_f(cursor)
+# def load_reg(cursor, word): return write_tagged_word(cursor, 36, word)
+# def from_reg(cursor, word): return write_tagged_word(cursor, 37, word)
+# def from_reg_or(cursor, word, default_f):
+#     cursor = write_tagged_word(cursor, 38, word)
+#     return default_f(cursor)
+# def event(cursor, id): return write_tagged_word(cursor, 39, id)
+# def cursor_default(cursor): return write_tagged_word(cursor, 45, None)
+# def cursor_pointer(cursor): return write_tagged_word(cursor, 46, None)
+
+# Text
+def text(x, y, ptr):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 40, None)
+        cursor = write_length(cursor, x)
+        cursor = write_length(cursor, y)
+        cursor = write_tagged_word(cursor, 41, ptr)
+    return f
+def font_size( size): return lambda cursor: write_tagged_word(cursor, 42, float(size))
+def font_alignment( alignment): return lambda cursor: write_tagged_word(cursor, 43, alignment)
+def font_family(ptr):
+    def f(cursor):
+        cursor = write_tagged_word(cursor, 44, None)
+        return write_tagged_word(cursor, 41, ptr)
+    return f
 
 
+# >>  Higher Level Components
+## Event map and generic handler
+GLOBAL_CALLBACK_MAP = {}
+def handle_event(obj):
+    id = obj.get('evt_id', None)
+    if id is None: return;
+    if id not in GLOBAL_CALLBACK_MAP: return;
+    GLOBAL_CALLBACK_MAP[id]()
+
+## Deal with event modification
+def write_cond_evt(cursor, fn, tag):
+    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2)
+    cursor = write_tagged_word(cursor, 39, len(GLOBAL_CALLBACK_MAP))
+    GLOBAL_CALLBACK_MAP[len(GLOBAL_CALLBACK_MAP)] = fn
+    return cursor
+## Deal with style modification
+def _branch(cursor, f, tag):
+    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2 * 2)
+    cursor = f(cursor)
+    return cursor
+def _branch_w_default(cursor, f, d_f, tag):
+    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2 * 3)
+    cursor = f(cursor)
+    cursor = write_tagged_word(cursor, 32, MACHINE_WORD * 2 * 2)
+    return d_f(cursor)
+def write_cond_style(cursor, v, style_f): # v is either ('rgb', bytes) or ('hover', ('rgb', bytes)) or ('hover', ('rgb', bytes), ('rgb', bytes))
+    if not isinstance(v[1], tuple): return style_f(v)(cursor)
+    if len(v) == 2: #nodefault
+        if v[0] == 'hover':   return _branch(cursor, style_f(v[1]), 28)
+        if v[0] == 'pressed': return _branch(cursor, style_f(v[1]), 29)
+        if v[0] == 'clicked': return _branch(cursor, style_f(v[1]), 30)
+        raise Exception("Unknown conditional state in", v)
+    if len(v) == 3: #w/default
+        if v[0] == 'hover':   return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 28)
+        if v[0] == 'pressed': return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 29)
+        if v[0] == 'clicked': return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 30)
+        raise Exception("Unknown conditional state in", v)
+    raise Exception('Bad conditional format', v)
+
+## Component
+def div(children, w=auto(), h=auto(), r=pxs(0), bg=rgb('cccccc'), clicked=None, hover=None, pressed=None):
+    def f(cursor):
+        # Layout
+        cursor = write_tagged_word(cursor, 9, None) # Enter
+        cursor = width(w)(cursor)
+        cursor = height(h)(cursor)
+
+        # Draw
+        cursor = write_cond_style(cursor, bg, color)
+        cursor = rounded_rect(pxs(0), pxs(0), w, h, r)(cursor)
+
+        # Events
+        if clicked is not None: cursor = write_cond_evt(cursor, clicked, 30)
+        if hover is not None: cursor = write_cond_evt(cursor, hover, 28)
+        if pressed is not None: cursor = write_cond_evt(cursor, pressed, 29)
+
+        for c in children: cursor = c(cursor)
+
+        cursor = write_tagged_word(cursor, 10, None) # Leave
+        return cursor
+    return f
 
 
+# Final
+def inflate(loc, root):
+    root(loc)
+    set_root(loc)
+    ctx.redraw()
+
+
+## Buisness Logic
 str = aloc_tagged_str(IPSUM);
 root = aloc(2 * MACHINE_WORD * 64)
 
+def f(): print("hello, world");
 
-cursor = root
-# Layout
-cursor = write_tagged_word(cursor, 9, None) # Enter (root)
-cursor = write_tagged_word(cursor, 21, None)# Width
-cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
-cursor = write_tagged_word(cursor, 22, None)# Height
-cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
-
-cursor = write_tagged_word(cursor, 23, None) # Padding
-cursor = write_tagged_word(cursor, 1, 10.0)
-cursor = write_tagged_word(cursor, 1, 10.0)
-cursor = write_tagged_word(cursor, 1, 10.0)
-cursor = write_tagged_word(cursor, 1, 10.0)
-
-cursor = write_tagged_word(cursor, 25, 1) # Display, FlexRow
-
-cursor = write_tagged_word(cursor, 9, None) # Enter (root)
-cursor = write_tagged_word(cursor, 32, 1) # PrimaryButton
-cursor = write_tagged_word(cursor, 10, None) # Leave (root)
-
-
-# def child(cursor):
-#     cursor = write_tagged_word(cursor, 9, None) # Enter (root)
-#     cursor = write_tagged_word(cursor, 21, None)# Width
-#     cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
-#     cursor = write_tagged_word(cursor, 22, None)# Height
-#     cursor = write_tagged_word(cursor, 3, 1.0) # Frac, 1.0
-
-#     cursor = write_tagged_word(cursor, 41, None) #Text, x, y, ptr
-#     cursor = write_tagged_word(cursor, 1, 0) # Pxs, 0
-#     cursor = write_tagged_word(cursor, 1, 0) # Pxs 0
-#     cursor = write_tagged_word(cursor, 42, str) # TextPtr <ptr>
-
-#     cursor = write_tagged_word(cursor, 10, None) # Leave (root)
-#     return cursor
-
-# cursor = child(cursor)
-# cursor = child(cursor)
-
-
-cursor = write_tagged_word(cursor, 10, None) # Leave (root)
-
-    # Frac, /* 3 */
-
-
-set_root(root)
+inflate(root,
+    div([], w=pxs(200), h=pxs(200), bg=('clicked', rgb('ff0000'), rgb('cccccc')) ,clicked=f)
+)
 
 while True:
     msg = ctx.recv()
-    print(msg);
+    handle_event(msg)
     sleep(1./1000. * 5)

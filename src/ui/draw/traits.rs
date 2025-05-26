@@ -140,7 +140,6 @@ where
                 }
                 Tag::Event => self.handle_event(tagged_word.read_as_event()?)?,
                 Tag::Text => self.read_as_text()?,
-                Tag::TextPtr => todo!(),
                 Tag::FontSize => self.handle_font_size(tagged_word.read_as_font_size()?)?,
                 Tag::FontAlignment => {
                     self.handle_font_alignment(tagged_word.read_as_font_alignment()?)?

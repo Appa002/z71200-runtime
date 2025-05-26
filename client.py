@@ -1,4 +1,3 @@
-from collections.abc import Iterable
 import os
 import socket
 import json
@@ -8,17 +7,6 @@ import ctypes.util
 import mmap
 import sys
 from time import sleep
-
-IPSUM = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur consectetur suscipit mollis. Donec condimentum aliquam enim ac vulputate. Donec rutrum malesuada ligula, vitae ornare sapien ultrices quis. Duis accumsan, odio eget convallis vehicula, enim purus fermentum risus, at facilisis metus magna eu metus. Phasellus ultricies accumsan nisl, eget finibus ex facilisis sed. Fusce pellentesque, sem nec porttitor porttitor, augue leo consequat neque, quis pulvinar nunc nunc finibus tortor. Nulla eu blandit arcu. Etiam pretium porttitor faucibus. Vivamus suscipit ultricies purus, sit amet dapibus sem sagittis in. Praesent faucibus auctor commodo. Aliquam auctor lectus sapien, ac hendrerit ipsum molestie vel. Duis vestibulum interdum laoreet. Praesent cursus interdum elit sed pretium. Maecenas sed ex quis ipsum lacinia dapibus a sed nulla. Suspendisse luctus massa sed egestas molestie. Sed porttitor vitae metus non faucibus.
-
-Sed sem libero, posuere sit amet pharetra sed, dignissim a eros. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Nam fringilla molestie iaculis. Etiam ut laoreet dui. Vestibulum volutpat laoreet mi at mollis. Vivamus ante ante, luctus nec vehicula in, convallis sit amet metus. Sed tincidunt viverra risus, ut aliquam augue suscipit at. Suspendisse molestie bibendum fringilla. Duis vel efficitur metus.
-
-Pellentesque accumsan dolor enim, quis placerat felis volutpat a. Nulla nec aliquam felis, vel porttitor nunc. Mauris sit amet tincidunt mauris, in bibendum ligula. Nulla facilisi. Quisque pellentesque justo ac ultricies venenatis. Morbi ligula lacus, faucibus at lectus ut, mollis ultrices turpis. Donec erat orci, luctus at mollis ut, vestibulum a neque. Donec vulputate odio id mi ullamcorper mattis. Integer sed laoreet ex. Aenean non quam vulputate, placerat enim posuere, efficitur nisl. Sed nibh massa, viverra non lacinia quis, consequat ut purus.
-
-Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Phasellus sodales sed dolor ut varius. Integer sit amet faucibus ipsum. Praesent leo ligula, elementum eget nisl id, consectetur volutpat eros. Sed facilisis orci vitae est aliquet finibus. Cras eleifend nisi vel magna viverra, vel dictum dui rutrum. Praesent condimentum, erat ac luctus congue, ipsum lacus aliquam ex, vitae bibendum nunc felis vel quam. Aliquam feugiat gravida felis, luctus pharetra ex pretium eu. Phasellus non velit blandit, commodo lorem ac, porttitor magna. Praesent consectetur commodo porta. Donec auctor arcu quam, ut dictum enim egestas eget. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Pellentesque at aliquam augue. Morbi iaculis sollicitudin turpis, egestas vehicula leo vestibulum ac.
-
-Fusce vel urna semper, tincidunt lectus congue, condimentum urna. Ut et auctor dolor, vitae maximus erat. Donec aliquet viverra ipsum, eget viverra tortor ultrices et. Proin eros purus, tincidunt vitae interdum sit amet, auctor eu sem. Interdum et malesuada fames ac ante ipsum primis in faucibus. Nullam pretium pharetra ipsum, a interdum nunc semper dictum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Maecenas sit amet iaculis ligula. In ultricies urna sed lectus mattis bibendum. Integer finibus cursus erat, at iaculis sem posuere sed.
-"""
 
 # Preamble
 EXPECTED_PROTOCOL = 1
@@ -278,75 +266,50 @@ def arc_to(tx, ty, x, y, r):
 def close_path(): return lambda cursor: write_tagged_word(cursor, 20, None)
 
 # Layout
-def width(w):
-    def f(cursor):
+def write_width(cursor, w):
         cursor = write_tagged_word(cursor, 22, None)
         return write_length(cursor, w)
-    return f
-def height(w):
-    def f(cursor):
-        cursor = write_tagged_word(cursor, 23, None)
-        return write_length(cursor, w)
-    return f
+def write_height(cursor, h):
+    cursor = write_tagged_word(cursor, 23, None)
+    return write_length(cursor, h)
 
-def padding(left, top, right, bottom):
-    def f(cursor):
-        cursor = write_tagged_word(cursor, 24, None)
-        cursor = write_length(cursor, left)
-        cursor = write_length(cursor, top)
-        cursor = write_length(cursor, right)
-        return write_length(cursor, bottom)
-    return f
-def margin(left, top, right, bottom):
-    def f(cursor):
-        cursor = write_tagged_word(cursor, 25, None)
-        cursor = write_length(cursor, left)
-        cursor = write_length(cursor, top)
-        cursor = write_length(cursor, right)
-        return write_length(cursor, bottom)
-    return f
-def display(display_option): return lambda cursor: write_tagged_word(cursor, 26, display_option)
-def gap(g):
-    def f(cursor):
-        cursor = write_tagged_word(cursor, 27, None)
-        return write_length(cursor, g)
-    return  f
+def write_padding(cursor, left, top, right, bottom):
+    cursor = write_tagged_word(cursor, 24, None)
+    cursor = write_length(cursor, left)
+    cursor = write_length(cursor, top)
+    cursor = write_length(cursor, right)
+    return write_length(cursor, bottom)
+def write_margin(cursor, left, top, right, bottom):
+    cursor = write_tagged_word(cursor, 25, None)
+    cursor = write_length(cursor, left)
+    cursor = write_length(cursor, top)
+    cursor = write_length(cursor, right)
+    return write_length(cursor, bottom)
+def write_display(cursor, display_option): return write_tagged_word(cursor, 26, display_option)
+def write_gap(cursor, gw, gh):
+    cursor = write_tagged_word(cursor, 27, None)
+    cursor = write_length(cursor, gw)
+    cursor = write_length(cursor, gh)
+    return cursor
 
-# States
-# def hover( rel_pointer): return write_tagged_word(cursor, 28, rel_pointer)
-# def mouse_pressed(cursor, rel_pointer): return write_tagged_word(cursor, 29, rel_pointer)
-# def clicked(cursor, rel_pointer): return write_tagged_word(cursor, 30, rel_pointer)
-# def open_latch(cursor, rel_pointer): return write_tagged_word(cursor, 31, rel_pointer)
-# def closed_latch(cursor, rel_pointer): return write_tagged_word(cursor, 32, rel_pointer)
-# def push_arg(cursor, arg): return write_tagged_word(cursor, 33, arg)
-# def pull_arg(cursor): return write_tagged_word(cursor, 34, None)
-# def pull_arg_or(cursor, default_f):
-#     cursor = write_tagged_word(cursor, 35, None)
-#     return default_f(cursor)
-# def load_reg(cursor, word): return write_tagged_word(cursor, 36, word)
-# def from_reg(cursor, word): return write_tagged_word(cursor, 37, word)
-# def from_reg_or(cursor, word, default_f):
-#     cursor = write_tagged_word(cursor, 38, word)
-#     return default_f(cursor)
-# def event(cursor, id): return write_tagged_word(cursor, 39, id)
-# def cursor_default(cursor): return write_tagged_word(cursor, 45, None)
-# def cursor_pointer(cursor): return write_tagged_word(cursor, 46, None)
+# Mouse
+def cursor_default(): return ('cursor', 'default')
+def cursor_pointer(): return ('cursor', 'pointer')
+def mouse_cursor(c):
+    def f(cursor):
+        if c[1] == "default":
+           return write_tagged_word(cursor, 45, None)
+        elif c[1] == "pointer":
+            return  write_tagged_word(cursor, 46, None)
+        raise Exception("Unknown cursor type", c)
+    return f
 
 # Text
-def text(x, y, ptr):
-    def f(cursor):
-        cursor = write_tagged_word(cursor, 40, None)
-        cursor = write_length(cursor, x)
-        cursor = write_length(cursor, y)
-        cursor = write_tagged_word(cursor, 41, ptr)
-    return f
-def font_size( size): return lambda cursor: write_tagged_word(cursor, 42, float(size))
-def font_alignment( alignment): return lambda cursor: write_tagged_word(cursor, 43, alignment)
-def font_family(ptr):
-    def f(cursor):
-        cursor = write_tagged_word(cursor, 44, None)
-        return write_tagged_word(cursor, 41, ptr)
-    return f
+def write_font_size(cursor, size): return write_tagged_word(cursor, 42, float(size))
+def write_font_alignment(cursor, alignment): return write_tagged_word(cursor, 43, alignment)
+def write_font_family(cursor, ptr):
+    cursor = write_tagged_word(cursor, 44, None)
+    return write_tagged_word(cursor, 41, ptr)
 
 
 # >>  Higher Level Components
@@ -365,39 +328,49 @@ def write_cond_evt(cursor, fn, tag):
     GLOBAL_CALLBACK_MAP[len(GLOBAL_CALLBACK_MAP)] = fn
     return cursor
 ## Deal with style modification
-def _branch(cursor, f, tag):
-    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2 * 2)
+def _branch(cursor, f, tag, n):
+    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2 * n)
     cursor = f(cursor)
     return cursor
-def _branch_w_default(cursor, f, d_f, tag):
-    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2 * 3)
+def _branch_w_default(cursor, f, d_f, tag, n):
+    cursor = write_tagged_word(cursor, tag, MACHINE_WORD * 2 * (n + 1))
     cursor = f(cursor)
-    cursor = write_tagged_word(cursor, 32, MACHINE_WORD * 2 * 2)
+    cursor = write_tagged_word(cursor, 32, MACHINE_WORD * 2 * n)
     return d_f(cursor)
-def write_cond_style(cursor, v, style_f): # v is either ('rgb', bytes) or ('hover', ('rgb', bytes)) or ('hover', ('rgb', bytes), ('rgb', bytes))
+def write_cond_style(cursor, v, style_f, n): # v is either ('rgb', bytes) or ('hover', ('rgb', bytes)) or ('hover', ('rgb', bytes), ('rgb', bytes))
     if not isinstance(v[1], tuple): return style_f(v)(cursor)
     if len(v) == 2: #nodefault
-        if v[0] == 'hover':   return _branch(cursor, style_f(v[1]), 28)
-        if v[0] == 'pressed': return _branch(cursor, style_f(v[1]), 29)
-        if v[0] == 'clicked': return _branch(cursor, style_f(v[1]), 30)
+        if v[0] == 'hover':   return _branch(cursor, style_f(v[1]), 28, n)
+        if v[0] == 'pressed': return _branch(cursor, style_f(v[1]), 29, n)
+        if v[0] == 'clicked': return _branch(cursor, style_f(v[1]), 30, n)
         raise Exception("Unknown conditional state in", v)
     if len(v) == 3: #w/default
-        if v[0] == 'hover':   return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 28)
-        if v[0] == 'pressed': return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 29)
-        if v[0] == 'clicked': return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 30)
+        if v[0] == 'hover':   return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 28, n)
+        if v[0] == 'pressed': return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 29, n)
+        if v[0] == 'clicked': return _branch_w_default(cursor, style_f(v[1]), style_f(v[2]), 30, n)
         raise Exception("Unknown conditional state in", v)
     raise Exception('Bad conditional format', v)
 
 ## Component
-def div(children, w=auto(), h=auto(), r=pxs(0), bg=rgb('cccccc'), clicked=None, hover=None, pressed=None):
+def div(children,
+    w=auto(), h=auto(), r=pxs(0), bg=rgb('cccccc'),
+    padding=(pxs(0), pxs(0), pxs(0), pxs(0)),
+    margin=(pxs(0), pxs(0), pxs(0), pxs(0)),
+    mouse=cursor_default(),
+    clicked=None, hover=None, pressed=None
+):
     def f(cursor):
         # Layout
         cursor = write_tagged_word(cursor, 9, None) # Enter
-        cursor = width(w)(cursor)
-        cursor = height(h)(cursor)
+        cursor = write_width(cursor, w)
+        cursor = write_height(cursor, h)
+
+        cursor = write_padding(cursor, *padding)
+        cursor = write_margin(cursor, *margin)
 
         # Draw
-        cursor = write_cond_style(cursor, bg, color)
+        cursor = write_cond_style(cursor, bg, color, 2)
+        cursor = write_cond_style(cursor, mouse, mouse_cursor, 1)
         cursor = rounded_rect(pxs(0), pxs(0), w, h, r)(cursor)
 
         # Events
@@ -411,6 +384,115 @@ def div(children, w=auto(), h=auto(), r=pxs(0), bg=rgb('cccccc'), clicked=None, 
         return cursor
     return f
 
+def row(children,
+    w=auto(), h=auto(),
+    padding=(pxs(0), pxs(0), pxs(0), pxs(0)),
+    margin=(pxs(0), pxs(0), pxs(0), pxs(0)),
+    gap=pxs(0),
+    clicked=None, hover=None, pressed=None
+):
+    def f(cursor):
+        # Layout
+        cursor = write_tagged_word(cursor, 9, None) # Enter
+        cursor = write_width (cursor, w)
+        cursor = write_height(cursor, h)
+        cursor = write_display(cursor, 1) # FlexRow
+
+        cursor = write_padding(cursor, *padding)
+        cursor = write_margin(cursor, *margin)
+        cursor = write_gap(cursor, gap, pxs(0))
+
+        # Events
+        if clicked is not None: cursor = write_cond_evt(cursor, clicked, 30)
+        if hover is not None: cursor = write_cond_evt(cursor, hover, 28)
+        if pressed is not None: cursor = write_cond_evt(cursor, pressed, 29)
+
+        for c in children: cursor = c(cursor)
+
+        cursor = write_tagged_word(cursor, 10, None) # Leave
+        return cursor
+    return f
+
+def col(children,
+    w=auto(), h=auto(),
+    padding=(pxs(0), pxs(0), pxs(0), pxs(0)),
+    margin=(pxs(0), pxs(0), pxs(0), pxs(0)),
+    gap=pxs(0),
+    clicked=None, hover=None, pressed=None
+):
+    def f(cursor):
+        # Layout
+        cursor = write_tagged_word(cursor, 9, None) # Enter
+        cursor = write_width(cursor, w)
+        cursor = write_height(cursor, h)
+        cursor = write_display(cursor, 2) # FlexRow
+
+        cursor = write_padding(cursor, *padding)
+        cursor = write_margin(cursor, *margin)
+        cursor = write_gap(cursor, pxs(0), gap)
+
+        # Events
+        if clicked is not None: cursor = write_cond_evt(cursor, clicked, 30)
+        if hover is not None: cursor = write_cond_evt(cursor, hover, 28)
+        if pressed is not None: cursor = write_cond_evt(cursor, pressed, 29)
+
+        for c in children: cursor = c(cursor)
+
+        cursor = write_tagged_word(cursor, 10, None) # Leave
+        return cursor
+    return f
+
+def span(text_ptr, x=pxs(0), y=pxs(0), w=auto(), text_color=rgb('000000'), alignment="start", size=None, font_family=None):
+    def f(cursor):
+        # Layout
+        cursor = write_tagged_word(cursor, 9, None) # Enter
+        cursor = write_width(cursor, w)
+        # Draw
+        cursor = write_cond_style(cursor, text_color, color, 2)
+
+        if alignment == 'start': cursor = write_font_alignment(cursor, 0)
+        elif alignment == 'end': cursor = write_font_alignment(cursor, 1)
+        elif alignment == 'left': cursor = write_font_alignment(cursor, 2)
+        elif alignment == 'middle': cursor = write_font_alignment(cursor, 3)
+        elif alignment == 'right': cursor = write_font_alignment(cursor, 4)
+        elif alignment == 'justified': cursor = write_font_alignment(cursor, 5)
+
+        if size is not None: cursor = write_font_size(cursor, size)
+        if font_family is not None: cursor = write_font_family(cursor, font_family.str_ptr)
+
+        cursor = write_tagged_word(cursor, 40, None) # write text, x, y
+        cursor = write_length(cursor, x)
+        cursor = write_length(cursor, y)
+        cursor = text_ptr.write_ref(cursor) # writes the ptr
+
+        cursor = write_tagged_word(cursor, 10, None) # Leave
+        return cursor
+    return f
+
+class TextPtr:
+    def __init__(self, text) -> None:
+        self.str_ptr = aloc_tagged_str(text)
+        self.ref_ptr = None
+        self.capacity = len(text.encode('utf-8'))
+
+    def write_ref(self, cursor):
+        cursor = write_tagged_word(cursor, 41, self.str_ptr)
+        self.ref_ptr = cursor - 2 * MACHINE_WORD
+        return cursor
+
+    def update(self, text):
+        if self.ref_ptr is None: raise Exception("Can't update managed string if it hasn't been written in memory yet")
+        bytes = text.encode("utf-8")
+        if len(bytes) > self.capacity: # alocate a new string
+            dealoc(self.str_ptr)
+            self.str_ptr = aloc_tagged_str(text)
+            self.capacity = len(text.encode('utf-8'))
+            # update the reference to point to the new string
+            ctx.safe_write(self.str_ptr.to_bytes(MACHINE_WORD, byteorder='little', signed=False), self.ref_ptr + MACHINE_WORD)
+        else: # it fits
+            ctx.safe_write(bytes, self.str_ptr + 2*MACHINE_WORD) # write bytes
+            ctx.safe_write(len(bytes).to_bytes(MACHINE_WORD, byteorder='little', signed=False), self.str_ptr + MACHINE_WORD) # write new array size
+
 
 # Final
 def inflate(loc, root):
@@ -419,14 +501,24 @@ def inflate(loc, root):
     ctx.redraw()
 
 
-## Buisness Logic
-str = aloc_tagged_str(IPSUM);
-root = aloc(2 * MACHINE_WORD * 64)
+## Example
+count = 0
+count_text = TextPtr("Clicked 0 times");
 
-def f(): print("hello, world");
+root = aloc(2 * MACHINE_WORD * 256)
+def f():
+    global count
+    count += 1
+    count_text.update(f"Clicked {count} times")
+    ctx.redraw()
 
 inflate(root,
-    div([], w=pxs(200), h=pxs(200), bg=('clicked', rgb('ff0000'), rgb('cccccc')) ,clicked=f)
+    row([
+          div([
+              span(TextPtr("Click me!"), w=frac(1.0), alignment="middle", y=pxs(8))
+          ], w=pxs(100), h=pxs(30), bg=('clicked', rgb('ff0000'), rgb('cccccc')), mouse=('hover', cursor_pointer()),clicked=f),
+          span(count_text, w=pxs(500))
+    ], padding=(pxs(10), pxs(10), pxs(10), pxs(10)), gap=pxs(10) )
 )
 
 while True:

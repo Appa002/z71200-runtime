@@ -129,10 +129,8 @@ where
                     self.handle_mouse_pressed(tagged_word.read_as_mouse_pressed()?)?
                 }
                 Tag::Clicked => self.handle_clicked(tagged_word.read_as_clicked()?)?,
-                Tag::OpenLatch => self.handle_open_latch(tagged_word.read_as_open_latch()?)?,
-                Tag::ClosedLatch => {
-                    self.handle_closed_latch(tagged_word.read_as_closed_latch()?)?
-                }
+                Tag::NoJmp => self.handle_no_jmp(tagged_word.read_as_no_jmp()?)?,
+                Tag::Jmp => self.handle_jmp(tagged_word.read_as_jmp()?)?,
 
                 Tag::PushArg => self.blanket_handle_push_arg()?,
                 Tag::LoadReg => {
@@ -456,10 +454,10 @@ pub(super) trait Intepreter {
     fn handle_clicked(&mut self, _rel_ptr: usize) -> Result<()> {
         Ok(())
     }
-    fn handle_open_latch(&mut self, _rel_ptr: usize) -> Result<()> {
+    fn handle_no_jmp(&mut self, _rel_ptr: usize) -> Result<()> {
         Ok(())
     }
-    fn handle_closed_latch(&mut self, _rel_ptr: usize) -> Result<()> {
+    fn handle_jmp(&mut self, _rel_ptr: usize) -> Result<()> {
         Ok(())
     }
     fn handle_text(

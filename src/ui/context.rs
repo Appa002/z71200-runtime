@@ -3,6 +3,7 @@ Example from: https://github.com/rust-skia/rust-skia/blob/master/skia-safe/examp
 */
 
 use std::sync::Arc;
+use tracing::debug;
 use vulkano::{
     VulkanLibrary,
     device::{
@@ -141,7 +142,7 @@ impl VulkanRenderContext {
             .expect("No suitable physical device found");
 
         // Print out the device we selected
-        println!(
+        debug!(
             "Using device: {} (type: {:?})",
             physical_device.properties().device_name,
             physical_device.properties().device_type,

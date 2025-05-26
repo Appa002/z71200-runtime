@@ -5,7 +5,7 @@ use serde_json::json;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{io::BufRead, process::Stdio};
-use tracing::{Level, error, info, span, warn};
+use tracing::{Level, error, info, span};
 
 use crate::ll_aloc;
 use crate::shm::DATA_OFF;
@@ -37,7 +37,7 @@ impl Drop for ProcessHandle {
     }
 }
 
-pub fn spawn_foreign_process(run: &str) -> Result<ProcessHandle> {
+pub fn spawn_foreign_process(run: &Vec<String>) -> Result<ProcessHandle> {
     let pid: i32 = unsafe { getppid() };
 
     // Create the socket and mmaped file
@@ -47,9 +47,15 @@ pub fn spawn_foreign_process(run: &str) -> Result<ProcessHandle> {
     let shm_guard = SHMHandle::new(&shm_path);
 
     // Spawn the programme
-    let mut child = std::process::Command::new("/bin/bash")
-        .arg("-c")
-        .arg(run)
+    let mut cmd = std::process::Command::new(
+        run.get(0)
+            .ok_or(anyhow!("Must specify a programme to launch with `--`"))?,
+    );
+    if run.len() > 1 {
+        cmd.args(&run[1..]);
+    }
+
+    let mut child = cmd
         .env("z71200_PROTOCOL_VERSION", format!("{}", PROTOCOL_VERSION))
         .env("z71200_SHM", &shm_path)
         .env("z71200_SEM_READY", format!("{}_sem_ready", &shm_path))
@@ -90,7 +96,7 @@ pub fn spawn_foreign_process(run: &str) -> Result<ProcessHandle> {
         let reader = std::io::BufReader::new(stderr);
         for line in reader.lines() {
             if let Ok(line) = line {
-                warn!("{}", line);
+                error!("{}", line);
             }
         }
     });

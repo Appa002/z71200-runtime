@@ -18,7 +18,6 @@ use std::{
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::error;
 
-// use femtovg::renderer::WGPURenderer::wgpu::{BackendOptions, InstanceFlags};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalPosition,
@@ -26,21 +25,6 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{CursorIcon, Window},
 };
-
-// lazy_static! {
-//     pub static ref LIBRARY: HashMap<usize, Vec<u8>> = {
-//         let mut m = HashMap::new();
-//         m.insert(
-//             0,
-//             assemble(include_str!("lib/0_rounded_rect.txt")).expect("couldn't assemble std lib"),
-//         );
-//         m.insert(
-//             1,
-//             assemble(include_str!("lib/1_button_primary.txt")).expect("couldn't assemble std lib"),
-//         );
-//         m
-//     };
-// }
 
 #[derive(Default, Clone, Copy)]
 pub struct InputState {
@@ -113,6 +97,8 @@ where
 
     animate_guard: AnimationGuard,
     last_frame_time: Instant,
+
+    just_logged_error: bool, /* to avoid spam */
 }
 
 impl<F> WGpuBackedApp<F>
@@ -145,6 +131,7 @@ where
             last_fram_jmps: HashMap::new(),
             animate_guard: AnimationGuard::new(),
             last_frame_time: std::time::Instant::now(),
+            just_logged_error: false,
         }
     }
 }
@@ -280,15 +267,8 @@ where
                                      so we can't do any draws with it.
                                     */
                                     let file_start = vdom.as_ptr() as *const u8;
-
-                                    // error!(
-                                    //     "waaa {}",
-                                    //     debug_print_layout(*loc, file_start, &LIBRARY).unwrap()
-                                    // );
-
-                                    // let now = std::time::Instant::now();
-                                    let out = unsafe {
-                                        draw(
+                                    unsafe {
+                                        let out = draw(
                                             loc,
                                             file_start,
                                             file_start.add(vdom.len() * size_of::<usize>()),
@@ -304,13 +284,12 @@ where
                                             base_font_size,
                                             &self.last_fram_jmps,
                                             dt,
-                                        )
-                                    };
-                                    // println!(
-                                    //     "Implied FPS: {:.02}",
-                                    //     1. / now.elapsed().as_millis() as f32 * 1_000.0
-                                    // );
-                                    out
+                                        );
+                                        if out.is_ok() {
+                                            self.just_logged_error = false;
+                                        }
+                                        out
+                                    }
                                 } else {
                                     Err(anyhow!("Location for ui not yet defined in memory."))
                                 }
@@ -322,18 +301,10 @@ where
                         match r {
                             Ok(jmps) => self.last_fram_jmps = jmps,
                             Err(err) => {
-                                error!("Error when generating frame. {:#}", err);
-                                // let guard = self.vdoms.lock().unwrap();
-                                // let loc = guard.0;
-                                // let vdom = &guard.1;
-
-                                // if let Some(loc) = loc {
-                                //     let file_start = vdom.as_ptr();
-                                //     // error!(
-                                //     //     "{}",
-                                //     //     debug_print_layout(loc, file_start, &LIBRARY).unwrap()
-                                //     // );
-                                // }
+                                if !self.just_logged_error {
+                                    error!("Error when generating frame. {:#}", err);
+                                    self.just_logged_error = true;
+                                }
 
                                 let fmgr = FontMgr::default();
                                 let typeface = fmgr

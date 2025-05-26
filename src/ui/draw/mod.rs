@@ -87,8 +87,8 @@ pub enum Tag {
     Hover,        /* 28 rel_pointer, [... no jmp], [jmp ...] */
     MousePressed, /* 29 rel_pointer, [... no jmp], [jmp ...] */
     Clicked,      /* 30 rel_pointer, [... no jmp], [jmp ...] */
-    OpenLatch,    /* 31 rel_pointer, [... no jmp], [jmp ...] */
-    ClosedLatch,  /* 32 rel_pointer, [... no jmp], [jmp ...] */
+    NoJmp,        /* 31 rel_pointer, [... no jmp], [jmp ...] */
+    Jmp,          /* 32 rel_pointer, [... no jmp], [jmp ...] */
     PushArg,      /* 33, any */
     PullArg,      /* 34 */
     PullArgOr,    /* 35 [default] */
@@ -221,8 +221,8 @@ impl TaggedWord {
     define_reader!(read_as_hover, Tag::Hover, usize);
     define_reader!(read_as_mouse_pressed, Tag::MousePressed, usize);
     define_reader!(read_as_clicked, Tag::Clicked, usize);
-    define_reader!(read_as_open_latch, Tag::OpenLatch, usize);
-    define_reader!(read_as_closed_latch, Tag::ClosedLatch, usize);
+    define_reader!(read_as_no_jmp, Tag::NoJmp, usize);
+    define_reader!(read_as_jmp, Tag::Jmp, usize);
     define_reader!(read_as_text_ptr, Tag::TextPtr, usize);
     define_reader!(read_as_display, Tag::Display, DisplayOption);
     define_reader!(read_as_font_size, Tag::FontSize, f32);

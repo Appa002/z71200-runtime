@@ -288,11 +288,11 @@ impl<'a> Intepreter for LayoutIntepreter<'a> {
         Ok(())
     }
 
-    fn handle_open_latch(&mut self, _rel_ptr: usize) -> Result<()> {
+    fn handle_no_jmp(&mut self, _rel_ptr: usize) -> Result<()> {
         Ok(())
     }
 
-    fn handle_closed_latch(&mut self, rel_ptr: usize) -> Result<()> {
+    fn handle_jmp(&mut self, rel_ptr: usize) -> Result<()> {
         self.cursor.cursor = unsafe { self.cursor.cursor.add(rel_ptr) }; /* the closed latch always jumps */
         Ok(())
     }

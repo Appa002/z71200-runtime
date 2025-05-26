@@ -1,9 +1,12 @@
+use clap::Parser;
+use cli::Cli;
 use process::{handle_sock_msg, spawn_foreign_process};
 use serde_json::json;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 use ui::start;
 
+mod cli;
 mod ll_aloc;
 mod process;
 mod shm;
@@ -14,20 +17,22 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 
 /*
-TODO: The file start is not magically 8 byte aligned...
-
+    2) Page Size
 */
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Tracing
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_ansi(true)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    // Cli:
+    let cli = Cli::parse();
+
     // Main:
     let vdoms = Arc::new(Mutex::new((None, Vec::new())));
     let (tx_refresh, rx_refresh) = tokio::sync::mpsc::channel(1);
@@ -36,7 +41,7 @@ async fn main() -> Result<()> {
 
     let vdoms_1 = vdoms.clone();
     let foreign_process_task = tokio::task::spawn(async move {
-        let handle = spawn_foreign_process("python3 -u client.py").unwrap();
+        let handle = spawn_foreign_process(&cli.command).unwrap();
         let shm_guard = handle.shm_guard.clone();
         let sock_guard = handle.sock_guard.clone();
         let mut sock_guard_1 = sock_guard.clone();
@@ -44,13 +49,14 @@ async fn main() -> Result<()> {
         let shm_guard_1 = shm_guard.clone();
         let vdoms_1 = vdoms_1.clone();
         let vdoms_2 = vdoms_1.clone();
+        let tx_quit_1 = tx_quit.clone();
         tokio::task::spawn(async move {
             sock_guard
                 .start(
                     move |msg| handle_sock_msg(&shm_guard_1, &vdoms_1, msg),
                     move || {
-                        let tx_quit = tx_quit.clone();
-                        async move { tx_quit.send(()).await.unwrap() }
+                        let tx_quit_1 = tx_quit_1.clone();
+                        async move { tx_quit_1.send(()).await.unwrap() }
                     },
                 )
                 .await;

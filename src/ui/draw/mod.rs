@@ -269,11 +269,17 @@ impl TaggedWord {
         }
     }
 
-    pub fn read_as_taffy_length_pct(&self, base_font_size: f32) -> Result<taffy::LengthPercentage> {
+    pub fn read_as_taffy_length_pct(
+        &self,
+        base_font_size: f32,
+        display_scale: f32,
+    ) -> Result<taffy::LengthPercentage> {
         match &self.tag {
-            Tag::Pxs => Ok(taffy::LengthPercentage::length(unsafe { self.word.real })),
+            Tag::Pxs => Ok(taffy::LengthPercentage::length(
+                unsafe { self.word.real } * display_scale,
+            )),
             Tag::Rems => Ok(taffy::LengthPercentage::length(
-                base_font_size * unsafe { self.word.real },
+                base_font_size * unsafe { self.word.real } * display_scale,
             )),
             Tag::Frac => Ok(taffy::LengthPercentage::percent(unsafe { self.word.real })),
             _ => Err(anyhow!(
@@ -290,14 +296,15 @@ impl TaggedWord {
     pub fn read_as_taffy_length_pctauto(
         &self,
         base_font_size: f32,
+        display_scale: f32,
     ) -> Result<taffy::LengthPercentageAuto> {
         match &self.tag {
             Tag::Auto => Ok(taffy::LengthPercentageAuto::auto()),
-            Tag::Pxs => Ok(taffy::LengthPercentageAuto::length(unsafe {
-                self.word.real
-            })),
+            Tag::Pxs => Ok(taffy::LengthPercentageAuto::length(
+                unsafe { self.word.real } * display_scale,
+            )),
             Tag::Rems => Ok(taffy::LengthPercentageAuto::length(
-                base_font_size * unsafe { self.word.real },
+                base_font_size * unsafe { self.word.real } * display_scale,
             )),
             Tag::Frac => Ok(taffy::LengthPercentageAuto::percent(unsafe {
                 self.word.real

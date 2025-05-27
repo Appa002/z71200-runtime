@@ -516,7 +516,7 @@ inflate(root,
     row([
           div([
               span(TextPtr("Click me!"), w=frac(1.0), alignment="middle", y=pxs(8))
-          ], w=pxs(100), h=pxs(30), bg=('clicked', rgb('ff0000'), rgb('cccccc')), mouse=('hover', cursor_pointer()),clicked=f),
+          ], w=pxs(100), h=pxs(30), r=pxs(5), bg=('clicked', rgb('ff0000'), rgb('cccccc')), mouse=('hover', cursor_pointer()),clicked=f),
           span(count_text, w=pxs(500))
     ], padding=(pxs(10), pxs(10), pxs(10), pxs(10)), gap=pxs(10) )
 )

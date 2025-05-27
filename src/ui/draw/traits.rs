@@ -161,7 +161,10 @@ where
     fn read_as_width(&mut self) -> Result<()> {
         let width = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         self.handle_width(width)?;
         Ok(())
     }
@@ -169,7 +172,10 @@ where
     fn read_as_height(&mut self) -> Result<()> {
         let height = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         self.handle_height(height)?;
         Ok(())
     }
@@ -177,16 +183,28 @@ where
     fn read_as_margin(&mut self) -> Result<()> {
         let left = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let top = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let right = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let bottom = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         self.handle_margin(left, top, right, bottom)?;
         Ok(())
     }
@@ -194,16 +212,28 @@ where
     fn read_as_padding(&mut self) -> Result<()> {
         let left = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let top = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let right = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let bottom = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         self.handle_padding(left, top, right, bottom)?;
         Ok(())
     }
@@ -211,10 +241,16 @@ where
     fn read_as_gap(&mut self) -> Result<()> {
         let width = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let height = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         self.handle_gap(width, height)?;
         Ok(())
     }
@@ -222,10 +258,16 @@ where
     fn read_as_text(&mut self) -> Result<()> {
         let x = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let y = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
 
         let ptr = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
@@ -247,17 +289,29 @@ where
     fn read_as_rect(&mut self) -> Result<()> {
         let x = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let y = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
 
         let w = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let h = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         self.handle_rect(x, y, w, h)?;
         Ok(())
     }
@@ -265,19 +319,34 @@ where
     fn read_as_rounded_rect(&mut self) -> Result<()> {
         let x = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let y = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pct(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let w = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let h = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
         let r = unsafe { self.read_from_cursor_with_arg() }?
             .ok_or(anyhow!("Early EOF"))?
-            .read_as_taffy_length_pctauto(self.get_config().base_font_size())?;
+            .read_as_taffy_length_pctauto(
+                self.get_config().base_font_size(),
+                self.get_config().display_scale(),
+            )?;
 
         self.handle_rounded_rect(x, y, w, h, r)?;
         Ok(())
@@ -300,73 +369,130 @@ where
                 Tag::MoveTo => {
                     let x = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let y = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     self.handle_move_to(x, y)?;
                 }
                 Tag::LineTo => {
                     let x = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let y = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     self.handle_line_to(x, y)?;
                 }
                 Tag::QuadTo => {
                     let cx = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let cy = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let x = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let y = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     self.handle_quad_to(cx, cy, x, y)?;
                 }
                 Tag::CubicTo => {
                     let cx1 = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let cy1 = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let cx2 = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let cy2 = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let x = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let y = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     self.handle_cubic_to(cx1, cy1, cx2, cy2, x, y)?;
                 }
                 Tag::ArcTo => {
                     let tx = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let ty = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let x = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let y = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     let r = unsafe { self.read_from_cursor_with_arg() }?
                         .ok_or(anyhow!("Early EOF"))?
-                        .read_as_taffy_length_pct(self.get_config().base_font_size())?;
+                        .read_as_taffy_length_pct(
+                            self.get_config().base_font_size(),
+                            self.get_config().display_scale(),
+                        )?;
                     self.handle_arc_to(tx, ty, x, y, r)?;
                 }
                 Tag::ClosePath => self.handle_close_path()?,

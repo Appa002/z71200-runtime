@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 
 /*
     2) Page Size
+    3) Font size and logical size aren't scaled the same time.
 */
 
 #[tokio::main]
@@ -95,6 +96,6 @@ async fn main() -> Result<()> {
         });
     };
 
-    start(1600, 900, "z71200-runtime", vdoms, handler, rx_refresh);
+    start(800, 450, "z71200-runtime", vdoms, handler, rx_refresh);
     Ok(())
 }

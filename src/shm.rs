@@ -16,7 +16,7 @@ use tokio::{io, task};
 use crate::{ll_aloc, process::PROTOCOL_VERSION};
 pub const VERSION_OFF: usize = 0;
 pub const DATA_OFF: usize = VERSION_OFF + size_of::<usize>();
-pub const LEN: usize = 1_024 * 12 /*12 kb*/;
+pub const LEN: usize = 1_024 * 32 /*32 kb*/;
 
 /// Create-or-open a POSIX shared-memory object and return the file descriptor
 fn open_shm(c_name: &CString, len: usize) -> std::io::Result<File> {

@@ -65,7 +65,7 @@ class Z71200Context:
 
         # Open shared file
         ## (it is important that the mmap object and buf object are stored on this class to avoid GC cleaning it up)
-        LEN = 1_024
+        LEN = 1_024 * 32
         fd = _open_shared_memory(os.environ["z71200_SHM"], self.libc)
         self.mm = mmap.mmap(fd, LEN, mmap.MAP_SHARED, mmap.PROT_READ | mmap.PROT_WRITE)
         self.buf = (ctypes.c_char * LEN).from_buffer(self.mm)

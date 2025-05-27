@@ -16,11 +16,6 @@ mod ui;
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
 
-/*
-    2) Page Size
-    3) Font size and logical size aren't scaled the same time.
-*/
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // Tracing

@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use core::panic;
 use libc::{
     EAGAIN, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR, c_long, ftruncate, sem_open, sem_post, sem_trywait,
@@ -8,7 +9,7 @@ use std::{
     ffi::CString,
     fs::File,
     os::fd::FromRawFd,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
     time::Duration,
 };
 use tokio::{io, task};
@@ -87,38 +88,95 @@ unsafe fn open_sem(c_name: &CString, initial: usize) -> std::io::Result<*mut i32
     Ok(sem)
 }
 
-pub struct SemMutext(*mut i32);
-unsafe impl Sync for SemMutext {}
-unsafe impl Send for SemMutext {}
-/* POSIX guarantees that semaphores are thread-safe when accessed with the same handle from any number of threads */
-impl SemMutext {
-    pub fn new(sem: *mut i32) -> Self {
-        unsafe { sem_wait(sem) };
-        Self(sem)
-    }
-    fn from_unsafe_fn(fd: &UnsafeFd) -> Self {
-        unsafe { sem_wait(fd.0) };
-        Self(fd.0)
+pub struct SemMuextGuard<'a, T> {
+    sem: UnsafeSendSyncRawSem,
+    pub data: MutexGuard<'a, T>,
+}
+
+impl<'a, T> Drop for SemMuextGuard<'a, T> {
+    fn drop(&mut self) {
+        unsafe { sem_post(self.sem.0) };
     }
 }
 
-impl Drop for SemMutext {
-    fn drop(&mut self) {
-        unsafe { sem_post(self.0) };
+#[derive(Debug)]
+pub struct SemMutex<T> {
+    sem: UnsafeSendSyncRawSem,
+    data: Mutex<T>,
+}
+impl<T> SemMutex<T> {
+    fn new(sem: *mut i32, data: T) -> Self {
+        Self {
+            sem: UnsafeSendSyncRawSem(sem),
+            data: Mutex::new(data),
+        }
+    }
+
+    pub fn lock(&self) -> Result<SemMuextGuard<'_, T>> {
+        let r = unsafe { sem_wait(self.sem.0) };
+        if r == 0 {
+            Ok(SemMuextGuard {
+                sem: self.sem,
+                data: self.data.lock().unwrap(),
+            })
+        } else {
+            Err(anyhow!(
+                "Error locking semaphore. {:#}",
+                std::io::Error::last_os_error()
+            ))
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn try_lock(&self) -> Result<Option<SemMuextGuard<'_, T>>> {
+        let r = unsafe { sem_trywait(self.sem.0) };
+        if r == 0 {
+            return // we got the lock
+            Ok(Some(SemMuextGuard {
+                sem: self.sem,
+                data:self.data.lock().unwrap(),
+            }));
+        }
+
+        if let Some(errno) = std::io::Error::last_os_error().raw_os_error() {
+            if errno == EAGAIN {
+                // currently locked
+                return Ok(None);
+            } else {
+                return Err(anyhow!(
+                    "Error locking semaphore. {:#}",
+                    io::Error::from_raw_os_error(errno)
+                ));
+            }
+        } else {
+            unreachable!(
+                "r should have been 0 if no OS error is reported -- something badly went wrong in the kernel."
+            )
+        }
+    }
+}
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+struct UnsafeSendSyncRawSem(*mut i32);
+unsafe impl Sync for UnsafeSendSyncRawSem {}
+unsafe impl Send for UnsafeSendSyncRawSem {}
+/* POSIX guarantees that semaphores are thread-safe when accessed with the same handle from any number of threads */
+/* We could make the SemMutex itself Send + Sync to get around the stored *mut i32 not being Send + Sync HOWEVER this disregards the
+semantics of the `T` type. A better implementation is this here, which wraps the *mut i32 so that the compiler can proof Send + Sync-ness
+from the T type. natrually we have to guarantee that accessing data referenced by this pointer is thread safe (thanks POSIX).
+*/
+impl UnsafeSendSyncRawSem {
+    unsafe fn try_wait(&self) -> i32 {
+        unsafe { sem_trywait(self.0) }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SHMHandle {
-    pub sem_ready: *mut i32,
-    pub sem_lock: *mut i32,
-    pub shm_file: Arc<Mutex<MmapMut>>,
+    sem_ready: UnsafeSendSyncRawSem,      /* sem_ready */
+    pub shm_file: Arc<SemMutex<MmapMut>>, /* sem_lock */
 }
-unsafe impl Sync for SHMHandle {}
-unsafe impl Send for SHMHandle {}
-/* POSIX guarantees that semaphores are thread-safe when accessed with the same handle from any number of threads.
-shm_file is already Send + Sync
-*/
 
 impl SHMHandle {
     pub fn new(toplevel_name: &str) -> Self {
@@ -141,33 +199,17 @@ impl SHMHandle {
         let mut mmaped = map_shared(&file, LEN).unwrap();
         unsafe {
             init_data(&mut mmaped);
-        }
-        // Setup default linked list alocator
-        {}
+        } // Setup default linked list alocator
 
         Self {
-            sem_ready,
-            sem_lock,
-            shm_file: Arc::new(Mutex::new(mmaped)),
+            sem_ready: UnsafeSendSyncRawSem(sem_ready),
+            shm_file: Arc::new(SemMutex::new(sem_lock, mmaped)),
         }
     }
 
-    // pub unsafe fn safe_write(&self, loc: usize, data: &[u8]) -> Result<()> {
-    //     let _guard = SemMutext::new(self.sem_lock); /* acquire inter-process read lock */
-    //     let as_slice: &mut [u8] = unsafe {
-    //         std::slice::from_raw_parts_mut(
-    //             self.shm_file.clone().lock().unwrap().as_mut_ptr().add(loc),
-    //             data.len(),
-    //         )
-    //     };
-    //     as_slice.copy_from_slice(data);
-    //     Ok(())
-    // }
-
-    pub fn recv(&self) -> impl std::future::Future<Output = Vec<usize>> {
-        let sem_ready = UnsafeFd(self.sem_ready);
-        let sem_lock = UnsafeFd(self.sem_lock);
-        let mmaped = self.shm_file.clone();
+    pub fn recv(&self) -> impl std::future::Future<Output = Arc<SemMutex<MmapMut>>> {
+        let sem_ready = self.sem_ready.clone();
+        let shm_file = self.shm_file.clone();
 
         async move {
             // Things used in the loop
@@ -176,45 +218,30 @@ impl SHMHandle {
 
             loop {
                 // wait for a signal from the other process that a new tree is available. (non-blockin)
-                let r = unsafe { sem_ready.try_wait() };
-                if r == 0
-                /* new data signal */
-                {
-                    let buffer = {
-                        /* acquire inter-process lock */
-                        let _guard = SemMutext::from_unsafe_fn(&sem_lock);
-
-                        // The following works because we are guaranteed to have written n*size_of(usize) many bytes
-                        // we mark the output vector as usize to guarantee alignment.
-                        let byte_len = LEN - DATA_OFF;
-                        let mut buffer = vec![0usize; byte_len / size_of::<usize>()];
-
-                        let u8_view = unsafe {
-                            std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, byte_len)
-                        };
-                        u8_view.copy_from_slice(&mmaped.lock().unwrap()[DATA_OFF..LEN]);
-                        buffer
-                    };
-
-                    // push new data to outer context
-                    return buffer;
-                }
-                // if r != 0 then an error occured if EAGAIN the semaphore was already locked
-                if let Some(errno) = std::io::Error::last_os_error().raw_os_error() {
-                    if errno == EAGAIN {
-                        task::yield_now().await;
-                        // exponential back-off, max 5 ms
-                        tokio::time::sleep(backoff).await;
-                        backoff = (backoff * 2).min(Duration::from_millis(5));
-                        continue;
-                    } else {
-                        panic!(
-                            "sem_trywait failed with error: {}",
-                            io::Error::from_raw_os_error(errno).to_string()
-                        );
+                match unsafe { sem_ready.try_wait() } {
+                    /* we can't use a mutex for this because we DONT want to increment the sem value once we are done (only the client process signals for new data) */
+                    0 => {
+                        /* new data signal, return the mutex to the now valid file */
+                        return shm_file.clone();
                     }
-                };
-                unreachable!() /* should have had r==0 if the outer if is false */
+                    _ => {
+                        if let Some(errno) = std::io::Error::last_os_error().raw_os_error() {
+                            if errno == EAGAIN {
+                                task::yield_now().await;
+                                // exponential back-off, max 5 ms
+                                tokio::time::sleep(backoff).await;
+                                backoff = (backoff * 2).min(Duration::from_millis(5));
+                                continue;
+                            } else {
+                                panic!(
+                                    "sem_trywait failed with error: {}",
+                                    io::Error::from_raw_os_error(errno).to_string()
+                                );
+                            }
+                        }
+                        unreachable!("sem_ready didn't return 0 but also no error was indicated.")
+                    }
+                }
             }
         }
     }
@@ -226,15 +253,5 @@ impl Drop for SHMHandle {
         // sem_unlink(self.sem_ready_name.as_ptr());
         // sem_unlink(self.sem_read_name.as_ptr());
         // this both may fail if they are unlinked already, but that's fine we just continue silently
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct UnsafeFd(*mut i32);
-unsafe impl Send for UnsafeFd {}
-unsafe impl Sync for UnsafeFd {}
-impl UnsafeFd {
-    unsafe fn try_wait(&self) -> i32 {
-        unsafe { sem_trywait(self.0) }
     }
 }

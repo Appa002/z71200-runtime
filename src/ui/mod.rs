@@ -7,6 +7,7 @@ pub mod renderer;
 use anyhow::{Result, anyhow};
 use context::VulkanRenderContext;
 use draw::{CarriedState, draw};
+use memmap2::MmapMut;
 use parley::{FontContext, LayoutContext};
 use renderer::VulkanRenderer;
 use skia_safe::{Color, Color4f, Font, FontMgr, FontStyle, Paint};
@@ -25,6 +26,8 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{CursorIcon, Window},
 };
+
+use crate::shm::{DATA_OFF, LEN, SemMutex};
 
 #[derive(Default, Clone, Copy)]
 pub struct InputState {
@@ -81,7 +84,7 @@ where
     width: u32,
     height: u32,
     title: &'static str,
-    vdoms: Arc<Mutex<(Option<usize>, Vec<usize>)>>,
+    vdoms: Arc<Mutex<(Option<usize>, Option<Arc<SemMutex<MmapMut>>>)>>,
     cb_push_evt: F,
 
     render_ctx: VulkanRenderContext,
@@ -109,7 +112,7 @@ where
         width: u32,
         height: u32,
         title: &'static str,
-        vdoms: Arc<Mutex<(Option<usize>, Vec<usize>)>>,
+        vdoms: Arc<Mutex<(Option<usize>, Option<Arc<SemMutex<MmapMut>>>)>>,
         cb_push_evt: F,
         rx: Receiver<()>,
     ) -> Self {
@@ -164,6 +167,7 @@ where
                 if let Some(_) = rx.recv().await {
                     window_1.request_redraw();
                 }
+                tokio::time::sleep(Duration::from_millis(11)).await; // 90fps
             }
         });
         self.rx_task = Some(j);
@@ -259,36 +263,38 @@ where
                         let r: Result<HashMap<*const u8, CarriedState>> = {
                             let guard = self.vdoms.lock().unwrap();
                             let loc = guard.0;
-                            let vdom = &guard.1;
-                            if vdom.len() != 0 {
+                            if let Some(vdom) = &guard.1 {
                                 if let Some(loc) = loc {
-                                    /*
-                                     NOTE: empty vectors (specifically that haven't allocated) have a dangling data ptr which is returned from vdom.as_ptr(); that pointer is never aligned and points to garbage,
-                                     so we can't do any draws with it.
-                                    */
-                                    let file_start = vdom.as_ptr() as *const u8;
-                                    unsafe {
-                                        let out = draw(
-                                            loc,
-                                            file_start,
-                                            file_start.add(vdom.len() * size_of::<usize>()),
-                                            size.width * display_scale,
-                                            size.height * display_scale,
-                                            canvas,
-                                            window.clone(),
-                                            self.cb_push_evt.clone(),
-                                            &self.input_state,
-                                            &mut self.font_context,
-                                            &mut self.layout_context,
-                                            display_scale,
-                                            base_font_size,
-                                            &self.last_fram_jmps,
-                                            dt,
-                                        );
-                                        if out.is_ok() {
-                                            self.just_logged_error = false;
+                                    if let Ok(file_lock) = vdom.lock() {
+                                        let file_start =
+                                            unsafe { file_lock.data.as_ptr().add(DATA_OFF) };
+                                        let file_end = unsafe { file_lock.data.as_ptr().add(LEN) };
+
+                                        unsafe {
+                                            let out = draw(
+                                                loc,
+                                                file_start,
+                                                file_end,
+                                                size.width * display_scale,
+                                                size.height * display_scale,
+                                                canvas,
+                                                window.clone(),
+                                                self.cb_push_evt.clone(),
+                                                &self.input_state,
+                                                &mut self.font_context,
+                                                &mut self.layout_context,
+                                                display_scale,
+                                                base_font_size,
+                                                &self.last_fram_jmps,
+                                                dt,
+                                            );
+                                            if out.is_ok() {
+                                                self.just_logged_error = false;
+                                            }
+                                            out
                                         }
-                                        out
+                                    } else {
+                                        Err(anyhow!("Failed to acquire lock on shared memory."))
                                     }
                                 } else {
                                     Err(anyhow!("Location for ui not yet defined in memory."))
@@ -344,7 +350,7 @@ pub fn start<F>(
     width: u32,
     height: u32,
     title: &'static str,
-    vdoms: Arc<Mutex<(Option<usize>, Vec<usize>)>>,
+    vdoms: Arc<Mutex<(Option<usize>, Option<Arc<SemMutex<MmapMut>>>)>>,
     cb_push_evt: F,
     rx: Receiver<()>,
 ) where

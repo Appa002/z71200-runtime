@@ -337,7 +337,7 @@ impl TaggedWord {
 }
 
 //::::: ----- Finally the main draw call ------
-pub fn draw<F>(
+pub unsafe fn draw<F>(
     loc: usize,
     file_start: *const u8,
     file_end: *const u8,

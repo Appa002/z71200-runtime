@@ -1,6 +1,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use libc::getppid;
+use memmap2::MmapMut;
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -10,7 +11,7 @@ use tracing::{Level, error, info, span};
 use crate::ll_aloc;
 use crate::shm::DATA_OFF;
 use crate::shm::LEN;
-use crate::shm::SemMutext;
+use crate::shm::SemMutex;
 use crate::{shm::SHMHandle, sock::SockHandle};
 
 pub const PROTOCOL_VERSION: usize = 1;
@@ -110,7 +111,7 @@ pub fn spawn_foreign_process(run: &Vec<String>) -> Result<ProcessHandle> {
 
 fn handle_sock_msg_falliable(
     shm_handle: &SHMHandle,
-    vdoms: &Arc<Mutex<(Option<usize>, Vec<usize>)>>,
+    vdoms: &Arc<Mutex<(Option<usize>, Option<Arc<SemMutex<MmapMut>>>)>>,
     msg: serde_json::Map<String, serde_json::Value>,
 ) -> Result<Option<String>> {
     /* {kind: 'ask', fn: 'foo', args: {...}} */
@@ -126,11 +127,12 @@ fn handle_sock_msg_falliable(
             match fn_name {
                 "aloc" => {
                     let n = args.get("n").and_then(|x| x.as_u64()).ok_or(anyhow!("Function 'aloc' expects one parameter 'n : int' -- the number of bytes to alocate"))?;
-                    let _guard = SemMutext::new(shm_handle.sem_lock); /* wait until the inter-process lock is acquired */
-                    let mut file = shm_handle.shm_file.lock().unwrap(); /* acquire this-process lock */
 
-                    let file_start = unsafe { file.as_mut_ptr().add(DATA_OFF) };
-                    let file_end = unsafe { file.as_ptr().add(LEN) };
+                    let mtx = shm_handle.shm_file.clone();
+                    let mut file = mtx.lock()?;
+
+                    let file_start = unsafe { file.data.as_mut_ptr().add(DATA_OFF) };
+                    let file_end = unsafe { file.data.as_ptr().add(LEN) };
                     let out_ptr = unsafe { ll_aloc::aloc(n as usize, file_start, file_end) }?;
 
                     Ok(Some(serde_json::to_string(
@@ -139,11 +141,12 @@ fn handle_sock_msg_falliable(
                 }
                 "dealoc" => {
                     let ptr = args.get("ptr").and_then(|x| x.as_u64()).ok_or(anyhow!("Function 'dealoc' expects one parameter 'ptr : int' -- offset where to free memory"))?;
-                    let _guard = SemMutext::new(shm_handle.sem_lock); /* wait until the inter-process lock is acquired */
-                    let mut file = shm_handle.shm_file.lock().unwrap(); /* acquire this-process lock */
 
-                    let file_start = unsafe { file.as_mut_ptr().add(DATA_OFF) };
-                    let file_end = unsafe { file.as_ptr().add(LEN) };
+                    let mtx = shm_handle.shm_file.clone();
+                    let mut file = mtx.lock()?;
+
+                    let file_start = unsafe { file.data.as_mut_ptr().add(DATA_OFF) };
+                    let file_end = unsafe { file.data.as_ptr().add(LEN) };
                     unsafe { ll_aloc::dealoc(ptr as usize, file_start, file_end) }?;
 
                     Ok(Some(serde_json::to_string(
@@ -172,7 +175,7 @@ fn handle_sock_msg_falliable(
 
 pub fn handle_sock_msg(
     shm_handle: &SHMHandle,
-    vdoms: &Arc<Mutex<(Option<usize>, Vec<usize>)>>,
+    vdoms: &Arc<Mutex<(Option<usize>, Option<Arc<SemMutex<MmapMut>>>)>>,
     msg: serde_json::Map<String, serde_json::Value>,
 ) -> Option<String> {
     match handle_sock_msg_falliable(shm_handle, vdoms, msg) {

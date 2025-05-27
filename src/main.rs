@@ -1,7 +1,9 @@
 use clap::Parser;
 use cli::Cli;
+use memmap2::MmapMut;
 use process::{handle_sock_msg, spawn_foreign_process};
 use serde_json::json;
+use shm::SemMutex;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 use ui::start;
@@ -18,6 +20,7 @@ use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // console_subscriber::init();
     // Tracing
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
@@ -30,9 +33,9 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Main:
-    let vdoms = Arc::new(Mutex::new((None, Vec::new())));
+    let vdoms: Arc<Mutex<(Option<usize>, Option<Arc<SemMutex<MmapMut>>>)>> =
+        Arc::new(Mutex::new((None, None)));
     let (tx_refresh, rx_refresh) = tokio::sync::mpsc::channel(1);
-    let (tx_quit, mut rx_quit) = tokio::sync::mpsc::channel::<()>(1);
     let (tx_broadcast, mut rx_broadcast) = tokio::sync::mpsc::channel::<String>(1);
 
     let vdoms_1 = vdoms.clone();
@@ -45,14 +48,14 @@ async fn main() -> Result<()> {
         let shm_guard_1 = shm_guard.clone();
         let vdoms_1 = vdoms_1.clone();
         let vdoms_2 = vdoms_1.clone();
-        let tx_quit_1 = tx_quit.clone();
         tokio::task::spawn(async move {
             sock_guard
                 .start(
                     move |msg| handle_sock_msg(&shm_guard_1, &vdoms_1, msg),
                     move || {
-                        let tx_quit_1 = tx_quit_1.clone();
-                        async move { tx_quit_1.send(()).await.unwrap() }
+                        /*let tx_quit_1 = tx_quit_1.clone();
+                        async move { tx_quit_1.send(()).await.unwrap() } */
+                        async {}
                     },
                 )
                 .await;
@@ -65,17 +68,12 @@ async fn main() -> Result<()> {
                         sock_guard_1.broadcast(&data).expect("Failed to broadcast -- unrecovrable.");
                     } else {/* rx channel closed; socket handled through tx_quit in sock_guard already. */}
                 },
-                buf = shm_guard.recv() => { /* sem_ready was triggered */
-                    vdoms_2.lock().unwrap().1 = buf;
-                    tx_refresh.send(()).await.expect("Failed to refresh screen -- channel failed.")
+                mtx = shm_guard.recv() => { /* sem_ready was triggered */
+                    vdoms_2.lock().unwrap().1 = Some(mtx);
+                    tx_refresh.send(()).await.expect("Failed to refresh screen -- channel failed.");
                 }
             }
         }
-    });
-
-    tokio::task::spawn(async move {
-        rx_quit.recv().await.unwrap(); /* waits until quit */
-        foreign_process_task.abort();
     });
 
     let handler = move |id: usize| {
@@ -92,5 +90,6 @@ async fn main() -> Result<()> {
     };
 
     start(800, 450, "z71200-runtime", vdoms, handler, rx_refresh);
+    foreign_process_task.abort();
     Ok(())
 }

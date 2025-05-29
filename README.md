@@ -1,8 +1,8 @@
 # Introduction
 
-The z71200 runtime at its core is intended as a user interface layouting and rendering backend. The executable launches a child process which communicates with a server to define and react to the interactive interface. The motivation for this project is to be a minimalist take on the role that the HTML + JS web environment often serves.
+The z71200 runtime is intended as a user interface layouting and rendering backend. The executable launches a child process which communicates with a server to define and react to the interactive interface. The motivation for this project is to be a minimalist take on the role that the HTML + JS web environment often serves.
 
-Many projects use "web technologies" for their user interface needs since they are the simplest to use. Particularly, the many years of javascript framework evolution has resulted in extremely sophisticated solutions that make most of the problems in structuring a UI-heavy application ergonomic. I believe the reason this happened with web technology is not necessarily because "it runs everywhere" but because the DOM sits at the perfect level of abstraction with an imperative API that makes code-structure innovation possible without bogging down the developer in the details of rendering and layout. Said another way, the DOM is bare enough to allow people to innovate in the philosophy of writing UI applications without being so bare as to require anyone to actually think about how layouts and rendering work.
+Many projects use "web technologies" for their user interface needs since they are the simplest to use. Particularly, the many years of javascript framework evolution has resulted in extremely sophisticated solutions that make most of the problems in structuring a UI-heavy application ergonomic. I believe the reason this happened with web technology is not necessarily because "it runs everywhere" but because the DOM sits at the perfect level of abstraction, with an imperative API, that makes code-structure innovation possible without bogging down the developer in the details of rendering and layout. Said another way, the DOM is bare enough to allow people to innovate in the philosophy of writing UI applications without being so bare as to require anyone to actually think about how layouts and rendering work.
 
 This project hopes to sit at the same level of abstraction but without any of the staggering overhead of the modern web.
 
@@ -82,7 +82,7 @@ The protocol assumes that each frame is always sent completely, i.e. no other da
 
 
 
-#### The Json Message that can be sent to the server
+#### The Json Messages that can be sent to the server
 
 | Name     | Schema                                                       | Description                                                  | Response Object                       |
 | -------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------- |
@@ -90,7 +90,7 @@ The protocol assumes that each frame is always sent completely, i.e. no other da
 | dealoc   | `{"kind": "ask", "fn": "dealoc", "args": {"ptr": <offset>}}` | Dealocates the bytes acquired by "aloc" at the offset "ptr". | `{"kind": "return", "return": null}`  |
 | set_root | `{"kind": "ask", "fn": "set_root", "args": {"ptr": <offset>}}` | Indicates that the memory location at `ptr` is the current root for the layout, i.e. the runtime will begin reading at that location to build the layout. | `{"kind": "return", "return": null}`  |
 
-As you can see, the basic structure to send to the server is a payload that indicates the "kind" of the message is possible. The kind "ask," which is the only kind of message you can currently send to the server, then requires the "fn" field, indicating the function name, and the "args" mapping, indicating the arguments. The server responds with an object with field `"kind": "return"`  or `"kind": "error"` containing either the field `return` or `error` with the given information.
+As you can see, the basic structure to send to the server is a payload that indicates the "kind" of the message, specifying the other required fields. The kind "ask," which is the only kind of message you can currently send to the server, requires the "fn" field, indicating the function name, and the "args" mapping, indicating the arguments. The server responds with an object with field `"kind": "return"`  or `"kind": "error"` containing either the field `return` or `error` with the respective information.
 
 #### "ask" messages
 
@@ -100,13 +100,13 @@ As mentioned above, the only "kind" of message you can send to the server is cal
 
 Above we already have seen that the server can send messages like `{"kind": "return", "return": <value>}` in response to "ask" message. The server may also respond with a message like `{"kind": "error", "error": <error string>}` indicating an error when resolving an "ask" message.
 
-The only 3rd message that the client is expected to handle is like `{"kind": "event", "evt_id": <id>}` which is sent when an event is fired. Events are fired by elements, for instance when an element is clicked or hovered, the id used is defined by your layout (see below) and it is on your client code to handle associating them with event handlers. (See line `316-330` in `client.py` for how this can be approached).
-
-
+The only 3rd message that the client is expected to handle is like `{"kind": "event", "evt_id": <id>}` which is sent when an event is fired. Events are fired by elements, for instance when an element is clicked or hovered. The id used is defined by your layout (see below) and it is on your client code to handle associating them with event handlers. (See line `316-330` in `client.py` for how this can be approached).
 
 ### The Shared Memory File
 
 The shared memory file is used to define the layout of the user interface as well as to allocate shared objects (such as strings). You can allocate n bytes using the `aloc` RPC call, or you can manage the memory yourself. The server never writes to the shared file, so if you prefer to implement your own allocator over the raw memory, you are welcome to (see `src/ll_aloc.rs` for inspiration on how to write a very simple linked-list backed alocator).
+
+The file contains a small header set up by the server before the data region begins. The header is a single `usize`-sized little-endian integer indicating the protocol version number, which is the same as the one given via the `z71200_PROTOCOL_VERSION` environment variable (see below).
 
 In general, the ui is defined through a sequence of "TaggedWord" structures which are read sequentially. They are a mixture of assembly-like instructions, typed literals, and nested ui layouts.
 
@@ -120,7 +120,7 @@ The basic structure is the tagged word. That is two `usize` (ie the size of the 
 
 Where each `[_]` is one byte and the `|` indicates the word boundary. As you can see, the tag is 5 (using little endianness) which is the tag for "Rgb" and the right word is the sequence `0xff0000`, so shear red. The empty `[]` are left to indicate that they are ignored  -- ie for this instruction they are just padding.
 
-Some tagged words behave like instructions, expecting multiple other tagged words afterwards as the arguments. For instance, the tag "Color" (21) expects one tagged word directly after as its argument. Such instruction-tagged words often accept multiple tags for the next tagged word. For instance, "Color" accepts any tagged word with tag 5, 6, 7, or 8, which are "Rgb", "Hsv", "Rgba", and "Hsva" respectively. So the following are both valid and both set the Skia pencil colour to red.
+Some tagged words behave like instructions, expecting multiple other tagged words afterwards as the arguments. For instance, the tag "Color" (21) expects one tagged word directly after as its argument. Such instruction-tagged words often accept multiple tags for the next tagged word. For instance, "Color" accepts any tagged word with tag 5, 6, 7, or 8, which are "Rgb", "Hsv", "Rgba", and "Hsva" respectively. So the following are both valid and set the Skia pencil colour to red.
 ```
  0: [21] [0] [0] [0] [0] [0] [0] [0] | [   ] [ ] [ ] [ ] [ ] [ ] [ ] [ ]
 16: [ 5] [0] [0] [0] [0] [0] [0] [0] | [255] [0] [0] [ ] [ ] [ ] [ ] [ ]
@@ -163,11 +163,11 @@ Where I've grouped tagged words that belong together (ie "Width" and its argumen
 
 #### Strings
 
-Strings are the only sort of object that needs to be shared between the client and server outside of the actual layout. The layout is to allocate an "Array" (0) tagged word, where the word is the length of the string and then lay out the utf-8 encoded bytes sequentially in memory after. An example of how to do this is the `aloc_tagged_str` method in `client.py` which given a string returns a pointer to the correct structure.
+Strings are the only sort of object that needs to be shared between the client and server outside of the actual layout. The convention is to allocate an "Array" (0) tagged word, where the word is the length of the string and then lay out the utf-8 encoded bytes sequentially in memory after. An example of how to do this is the `aloc_tagged_str` method in `client.py` which given a string returns a pointer to the correct structure.
 
 #### Events and State Jmps
 
-The UI needs to react to events and change its style based on the element state. To facilitate this the "Hover" (28), "MousePressed" (29), and "Clicked" (30) tagged words are used. They each take a relative pointer as their associated word. They work like `jne` like instructions in Assembly language, performing the relative jump if the state is *not*  active. That is the following changes the pencil colour to red, if the element is hovered.
+The UI needs to react to events and change its style based on the element state. To facilitate this the "Hover" (28), "MousePressed" (29), and "Clicked" (30) tagged words are used. They each take a relative pointer as their associated word. They work like `jne` instructions in Assembly languages performing the relative jump if the state is *not* active. That is the following changes the pencil colour to red, if the element is hovered.
 
 ```
  0: [28] [0] [0] [0] [0] [0] [0] [0] | [ 32] [0] [0] [0] [0] [0] [0] [0]
@@ -178,7 +178,7 @@ The UI needs to react to events and change its style based on the element state.
 
 The first tagged word at address `0` is the "Hover" jump with relative address `32`. This means if the element is not hovered, the interpreter jumps 32 bytes forward from the end of that tagged word, that is, to address `48` -- right after the "Rgb" tag.
 
-The others work the same, "MousePressed" doesn't jump if the mouse is being held down over the element, and "Clicked" doesn't jump if the mouse was just released over the element. You can also use the unconditional jump "Jmp" (32) tag and the noop tag "NoJmp" (31) to structure your layout. One way of using these is to change the tag in a tagged word from 32 to 31 or vice-versa depending on the programme state. For instance, when implementing radial buttons, where only one can be pressed, the one that has to be drawn in the pressed state is not jumped over, while the others are. There's no bottleneck writing to memory, so you could do this every frame.
+The others work the same, "MousePressed" doesn't jump if the mouse is being held down over the element, and "Clicked" doesn't jump if the mouse was just released over the element. You can also use the unconditional jump "Jmp" (32) tag and the no-op tag "NoJmp" (31) to structure your layout. One way of using these is to change the tag in a tagged word from 32 to 31 or vice-versa depending on the programme state. For instance, when implementing radial buttons, where only one can be pressed, the one that has to be drawn in the pressed state is not jumped over, while the others are. There's no bottleneck writing to memory, so you could do this every frame.
 
 Events work through the "Event" (39) tag, it takes a usize integer as its associated word. Every time the interpreter reads the tag, an event with the given id is sent to the client. To implement a clicked event for instance, you'd use the "Clicked" (30) jump to jump over the "Event" (39) tag unless the element was clicked in that frame.
 
@@ -186,7 +186,19 @@ Events work through the "Event" (39) tag, it takes a usize integer as its associ
 
 #### Storing tagged words on the stack or registers
 
-The interpreter actually keeps track of a stack and registers that can be used to store and load arguments like one might in traditional assembly machines. This is actually entirely unnecessary and the expectation is that the client code interpolates repeated arguments in the right places. However, it may be ergonomic to use in few situations. "PushArg" (33) reads the next tagged word and puts it onto the stack. "PullArg" (34) pops one argument from the stack and presents it "in its place". Ie if you write the sequence `Color, PullArg`  the colour will be set to whatever argument is pulled from the stack. This errors if no argument is on the stack, however, you can provide a default via "PullArgOr" (35) which reads the next tagged word and provides it as a default if the stack is empty. The register-based manipulations with "LoadReg" (36), "FromReg" (37), and "FromRegOr" (38) are analogous but they all take an integer word for the register id to reference. There are `usize` many registers.
+The interpreter actually keeps track of a stack and registers that can be used to store and load arguments like one might in traditional virtual machines. This is actually entirely unnecessary and the expectation is that the client code interpolates repeated arguments in the right places. However, it may be ergonomic to use in few situations. "PushArg" (33) reads the next tagged word and puts it onto the stack. "PullArg" (34) pops one argument from the stack and presents it "in its place". Ie if you write the sequence `Color, PullArg`  the colour will be set to whatever argument is pulled from the stack. This errors if no argument is on the stack, however, you can provide a default via "PullArgOr" (35) which reads the next tagged word and provides it as a default if the stack is empty. The register-based manipulations with "LoadReg" (36), "FromReg" (37), and "FromRegOr" (38) are analogous but they all take an integer word for the register id to reference. There are `usize` many registers.
+
+
+
+### Environment Variable
+
+The child process has the following environment variables injected to set up communication with these POSIX objects.
+
+- `"z71200_PROTOCOL_VERSION"`: The protocol version expected by the server, currently `1`. Changes every time the number or nature of the tagged word or unix socket protocol changes. In principle, independent of crate version number, since certain updates can be done without affecting the protocol.
+- `"z71200_SHM"`: The path to the shared memory file.
+- `"z71200_SEM_LOCK"`: The path to the "Lock" semaphore.
+- `"z71200_SEM_READY"`: The path to the "Ready" semaphore.
+- `"z71200_SOCK"`: The path to the UNIX socket.
 
 
 
@@ -265,7 +277,7 @@ The display and the font alignment are their own separate mapping like this.
 | 4    | Right     |
 | 5    | Justified |
 
-The word column shows what the expected data to be stored in the associated word is. The arg columns layout which tagged word(s) need to follow as arguments to the instruction, names like `x`, `y`, `r`,  or `width`  allow any of the "length family" tagged words (ie pxs, rems, frac, or auto) to follow. If the word column is empty, it is ignored during parsing. Note that you must always write `usize` many bytes for both the tag and word, ie the structure is always `2*usize` sized, even if a different type is stored. This makes alignment and safe reading trivial.
+The word column shows what the expected data to be stored in the associated word is. The arg columns layout which tagged word(s) need to follow as arguments to the instruction, names like `x`, `y`, `r`,  or `width`  allow any of the "length family" tagged words (ie pxs, rems, frac, or auto) to follow. If the word column is empty, it is ignored during parsing. Note that you must always write `usize` many bytes for both the tag and word, ie the structure is always `2*usize` sized, even if a different type is stored. This makes alignment safe reading trivial.
 
 
 
@@ -273,7 +285,7 @@ The word column shows what the expected data to be stored in the associated word
 
 As referenced multiple times the provided `client.py` gives a succinct example implementation. The general approach is to first implement the basic communication via the POSIX objects making sure all the synchronisation guarantees are met, to then implement abstractions over the tagged words, allowing you to more easily write a sequence of them, and to then implement a high-level UI framework, which makes state management and such things ergonomic (this 3rd part is where all the innovations between frameworks like React or Svelte sit). 
 
-The provided client is written in such a way that the code gains abstraction as you scroll down. The first four functions wrap the raw `libc` calls, the `Z71200Context` class implements the binary protocol, providing safe abstractions for writing to the shared file, receiving data from the socket, and making rpc calls. The functions after capture the context and provide abstractions for writing strings and sequences of tagged words into memory, the latter by keeping track of a cursor that is advanced for each written word. The last parts then define a high-level ui framework, that then finally allows you to define a UI tree like:
+The provided client is written in such a way that the code gains abstraction as you scroll down. The first four functions wrap the raw `libc` calls, the `Z71200Context` class implements the binary protocol, providing safe abstractions for writing to the shared file, receiving data from the socket, and making rpc calls. The functions after capture the context and provide abstractions for writing strings and sequences of tagged words into memory. The last parts then define a high-level ui framework, that then finally allows you to define a UI tree like this.
 
 ```python
 inflate(root,
@@ -286,5 +298,56 @@ inflate(root,
 )
 ```
 
-This last part is the most stunted and really only provided as a sketch to give you some ideas on what a framework might look like. The aim of this project is to make all the parts leading up to this as easy and succinct as possible without sacrificing performance so that we can get real ui innovation in all languages.
+This last part is the most stunted and really only provided as a sketch to give you some ideas on what a framework might look like. The aim of this project is to make all the parts leading up to this as easy and as succinct as possible without sacrificing performance so that we can focus on this part of the implementation.
 
+
+
+### Updating Data Reactivly
+
+Naturally, you will need to update data in response to user input. This is such a common pattern that this section will highlight a solution. Usually, if you are updating data, you need to update some displayed text. In JavaScript frameworks, this is usually expressed via some interpolation syntax like `<p> Clicked {count()} times </p>`, which under the hood is wired up to event listeners and some code to update the `innerHTML` property. This section here shows how to implement the "update `innerHTML`" part of the process by referencing the example Python client.
+
+The core behaviour is implemented in the `TextPtr` class.
+```python
+class TextPtr:
+    def __init__(self, text) -> None:
+        self.str_ptr = aloc_tagged_str(text)
+        self.ref_ptr = None
+        self.capacity = len(text.encode('utf-8'))
+
+    def write_ref(self, cursor):
+        cursor = write_tagged_word(cursor, 41, self.str_ptr)
+        self.ref_ptr = cursor - 2 * MACHINE_WORD
+        return cursor
+
+    def update(self, text):
+        if self.ref_ptr is None: raise Exception("Can't update managed string if it hasn't been written in memory yet")
+        bytes = text.encode("utf-8")
+        if len(bytes) > self.capacity: # alocate a new string
+            dealoc(self.str_ptr)
+            self.str_ptr = aloc_tagged_str(text)
+            self.capacity = len(text.encode('utf-8'))
+            # update the reference to point to the new string
+            ctx.safe_write(self.str_ptr.to_bytes(MACHINE_WORD, byteorder='little', signed=False), self.ref_ptr + MACHINE_WORD)
+        else: # it fits
+            ctx.safe_write(bytes, self.str_ptr + 2*MACHINE_WORD) # write bytes
+            ctx.safe_write(len(bytes).to_bytes(MACHINE_WORD, byteorder='little', signed=False), self.str_ptr + MACHINE_WORD) # write new array size
+
+```
+
+It keeps track of three fields:  `self.str_ptr` is the pointer to where in the shared file the string is allocated (see above about string format convention); `self.ref_ptr` is the location in the shared file where the "TextPtr" (41) tagged word is written, or `None` if it has not yet been written; and `self.capacity` is the length of the largest string we've ever stored at `self.str_ptr`.
+
+Somewhere in the layout (or indeed in multiple places, but it's an exercise to the reader to modify this class to handle that case correctly), this string is referenced through a "TextPtr" (41) tagged word. Such a reference is written with `write_ref`, which just writes the tagged word and sets the `self.ref_ptr`field correctly. In general, updating the ui with new text is easy: *Don't change the "TextPtr" (41) tagged word and simply update the bytes of the string it points to*. This is the closest analogy to the DOM's `element.innerText = "..."` method, but requires no under-the-hood magic -- when the next frame is rendered, the runtime will simply read a different string now.
+
+However, there is one slight complication in that the new string may be too large to fit in the allocated region. In that case, we allocate a new region that is large enough and write the new string there, we then patch up the word of the reference "TextPtr" (41) tagged word to point to the new location.
+
+This setup can then be used in event handlers, like `count_text` here, which is an instance of the `TextPtr` class which we passed to a `span` in the example python client's ui library.
+
+```python 
+def f():
+    global count
+    count += 1
+    count_text.update(f"Clicked {count} times")
+    ctx.redraw()
+```
+
+You can get clever with wiring this update code up to template replacements and signals like you would when building any other ui library.
